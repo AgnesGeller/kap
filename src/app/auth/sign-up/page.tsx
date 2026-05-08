@@ -1,0 +1,94 @@
+﻿import Link from "next/link";
+
+import { signUp } from "@/app/auth/actions";
+import { hasSupabaseEnv } from "@/lib/supabase/config";
+
+type PageProps = {
+  searchParams?: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function SignUpPage({ searchParams }: PageProps) {
+  const params = (await searchParams) ?? {};
+  const configured = hasSupabaseEnv();
+
+  return (
+    <main className="mx-auto flex min-h-[calc(100vh-88px)] w-full max-w-7xl items-center px-6 py-12 lg:px-10 lg:py-16">
+      <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="rounded-[32px] border border-[#ddd2c4] bg-white p-8 shadow-[0_20px_60px_rgba(26,20,16,0.06)] lg:p-10">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8b6f47]">Regisztráció</p>
+            <h1 className="text-3xl font-semibold text-[#1f1a15]">Első belépés létrehozása</h1>
+          </div>
+
+          {!configured ? (
+            <div className="mt-6 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-7 text-amber-900">
+              A Supabase még nincs beállítva. A regisztrációs UI kész, de a tényleges fióklétrehozáshoz előbb ki kell tölteni a `.env.local` fájlt.
+            </div>
+          ) : null}
+
+          {params.error ? (
+            <div className="mt-6 rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm leading-7 text-rose-900">
+              {params.error}
+            </div>
+          ) : null}
+
+          <form action={signUp} className="mt-8 space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="fullName" className="text-sm font-semibold text-[#2a211a]">Teljes név</label>
+                <input id="fullName" name="fullName" type="text" disabled={!configured} className="w-full rounded-[18px] border border-[#ddd2c4] bg-[#fcf8f2] px-4 py-3 text-sm text-[#1f1a15] outline-none transition focus:border-[#1e5a40] disabled:cursor-not-allowed disabled:opacity-60" placeholder="Teljes név" />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="companyName" className="text-sm font-semibold text-[#2a211a]">Cégnév</label>
+                <input id="companyName" name="companyName" type="text" disabled={!configured} className="w-full rounded-[18px] border border-[#ddd2c4] bg-[#fcf8f2] px-4 py-3 text-sm text-[#1f1a15] outline-none transition focus:border-[#1e5a40] disabled:cursor-not-allowed disabled:opacity-60" placeholder="Cég neve" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-semibold text-[#2a211a]">Email-cím</label>
+              <input id="email" name="email" type="email" required disabled={!configured} className="w-full rounded-[18px] border border-[#ddd2c4] bg-[#fcf8f2] px-4 py-3 text-sm text-[#1f1a15] outline-none transition focus:border-[#1e5a40] disabled:cursor-not-allowed disabled:opacity-60" placeholder="pelda@email.hu" />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="password" className="text-sm font-semibold text-[#2a211a]">Jelszó</label>
+              <input id="password" name="password" type="password" required disabled={!configured} className="w-full rounded-[18px] border border-[#ddd2c4] bg-[#fcf8f2] px-4 py-3 text-sm text-[#1f1a15] outline-none transition focus:border-[#1e5a40] disabled:cursor-not-allowed disabled:opacity-60" placeholder="Legalább 6 karakter" />
+            </div>
+
+            <button disabled={!configured} className="inline-flex w-full items-center justify-center rounded-full bg-[#1e5a40] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#184a34] disabled:cursor-not-allowed disabled:opacity-60">
+              Fiók létrehozása
+            </button>
+          </form>
+
+          <div className="mt-6 flex flex-wrap gap-3 text-sm">
+            <Link href="/auth/sign-in" className="font-semibold text-[#1e5a40] transition hover:text-[#184a34]">
+              Már van fiókom
+            </Link>
+            <span className="text-[#8a7a6a]">•</span>
+            <Link href="/" className="font-semibold text-[#6a5b4e] transition hover:text-[#2a211a]">
+              Vissza a főoldalra
+            </Link>
+          </div>
+        </section>
+
+        <section className="rounded-[32px] bg-[#10201a] p-8 text-white shadow-[0_24px_70px_rgba(10,20,17,0.34)] lg:p-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200/78">Két céges indulás</p>
+          <h2 className="mt-4 text-4xl font-semibold leading-tight">Most belépés, utána céges adatmodellek.</h2>
+          <p className="mt-5 max-w-xl text-base leading-8 text-white/74">
+            A regisztráció most még egyszerű auth-lépcső. A következő körökben erre jön rá a company, profile, client és survey logika a Supabase adatbázisban.
+          </p>
+
+          <div className="mt-8 space-y-4">
+            <div className="rounded-[24px] border border-white/10 bg-white/6 p-5 text-sm leading-7 text-white/76">
+              Az email megerősítés Supabase beállítástól függően szükséges lehet első belépés előtt.
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-white/6 p-5 text-sm leading-7 text-white/76">
+              A user adatok később nem a JWT user_metadata alapján lesznek jogosultságra használva, hanem külön adatbázis-struktúrában.
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
