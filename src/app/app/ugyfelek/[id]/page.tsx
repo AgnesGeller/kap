@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { updateClient } from "@/app/app/ugyfelek/[id]/actions";
+import {
+  createQuoteForClient,
+  updateClient,
+} from "@/app/app/ugyfelek/[id]/actions";
 import { withTimeout } from "@/lib/async";
 import {
   createQueryFallbackSuccess,
@@ -215,10 +218,10 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
           Vissza az ügyfelekhez
         </Link>
         <Link
-          href="/felmero"
+          href={`/felmero?clientId=${clientDetail.id}`}
           className="inline-flex rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]"
         >
-          Új felmérés
+          Új felmérés ehhez az ügyfélhez
         </Link>
       </div>
 
@@ -264,6 +267,37 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
           {paramsValue.error}
         </div>
       ) : null}
+
+      <section className="rounded-[24px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)] lg:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
+              Következő lépés
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
+              Munka indítása ebből az ügyfélből
+            </h2>
+            <p className="mt-2 max-w-3xl text-base font-medium leading-7 text-[#44382e]">
+              Ha új helyszíni felmérés kell, az űrlap előtöltődik. Ha már elég
+              adat van, közvetlenül ajánlatvázlatot is nyithatsz.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              href={`/felmero?clientId=${clientDetail.id}`}
+              className="rounded-full bg-[#123f2d] px-5 py-3 text-center text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]"
+            >
+              Felmérés indítása
+            </Link>
+            <form action={createQuoteForClient}>
+              <input type="hidden" name="clientId" value={clientDetail.id} />
+              <button className="w-full rounded-full border-2 border-[#bfa988] bg-white px-5 py-3 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5] sm:w-auto">
+                Ajánlatvázlat indítása
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
 
       <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <article className="rounded-[24px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)] lg:p-6">

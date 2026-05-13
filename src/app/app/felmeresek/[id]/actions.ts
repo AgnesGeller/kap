@@ -117,6 +117,21 @@ export async function createQuoteFromSurvey(formData: FormData) {
     );
   }
 
+  const { data: existingQuote } = await supabase
+    .from("quotes")
+    .select("id")
+    .eq("survey_id", survey.id)
+    .eq("company_id", profile.company_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingQuote?.id) {
+    redirect(
+      `/app/ajanlatok/${existingQuote.id}?message=${encodeURIComponent("Ehhez a felméréshez már van ajánlatvázlat.")}`,
+    );
+  }
+
   const serviceKeys = Array.isArray(survey.service_keys) ? survey.service_keys : [];
   const lineItems = serviceKeys.map((service: string) => ({
     name: service,
@@ -128,22 +143,28 @@ export async function createQuoteFromSurvey(formData: FormData) {
   }));
   const title = `${survey.title || "Mentett felmérés"} - ajánlat vázlat`;
 
-  const { error: quoteError } = await supabase.from("quotes").insert({
-    company_id: profile.company_id,
-    survey_id: survey.id,
-    client_id: survey.client_id,
-    created_by: user.id,
-    quote_number: createQuoteNumber(),
-    title,
-    status: "draft",
-    line_items: lineItems,
-    subtotal: survey.estimated_total ?? 0,
-    total: survey.estimated_total ?? 0,
-    notes: "Felmérésből automatikusan előkészített ajánlat vázlat.",
-  });
+  const { data: quote, error: quoteError } = await supabase
+    .from("quotes")
+    .insert({
+      company_id: profile.company_id,
+      survey_id: survey.id,
+      client_id: survey.client_id,
+      created_by: user.id,
+      quote_number: createQuoteNumber(),
+      title,
+      status: "draft",
+      line_items: lineItems,
+      subtotal: survey.estimated_total ?? 0,
+      total: survey.estimated_total ?? 0,
+      notes: "Felmérésből automatikusan előkészített ajánlat vázlat.",
+    })
+    .select("id")
+    .single();
 
-  if (quoteError) {
-    redirect(`/app/felmeresek/${surveyId}?error=${encodeURIComponent(quoteError.message)}`);
+  if (quoteError || !quote?.id) {
+    redirect(
+      `/app/felmeresek/${surveyId}?error=${encodeURIComponent(quoteError?.message ?? "Az ajánlat létrehozása nem sikerült.")}`,
+    );
   }
 
   await supabase
@@ -156,6 +177,6 @@ export async function createQuoteFromSurvey(formData: FormData) {
   revalidatePath("/app/ajanlatok");
   revalidatePath(`/app/felmeresek/${surveyId}`);
   redirect(
-    `/app/felmeresek/${surveyId}?message=${encodeURIComponent("Ajánlat vázlat létrehozva.")}`,
+    `/app/ajanlatok/${quote.id}?message=${encodeURIComponent("Ajánlat vázlat létrehozva.")}`,
   );
 }

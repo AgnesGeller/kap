@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { withTimeout } from "@/lib/async";
 import { createClient } from "@/lib/supabase/server";
 
 function getString(value: FormDataEntryValue | null) {
@@ -14,11 +15,24 @@ export async function signIn(formData: FormData) {
   const password = getString(formData.get("password"));
 
   if (!email || !password) {
-    redirect("/auth/sign-in?error=Add%20meg%20az%20email-cimet%20es%20a%20jelszot.");
+    redirect(
+      `/auth/sign-in?error=${encodeURIComponent("Add meg az email-címet és a jelszót.")}`,
+    );
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await withTimeout(
+    supabase.auth.signInWithPassword({ email, password }).then((result) => ({
+      error: result.error ? { message: result.error.message } : null,
+    })),
+    {
+      error: {
+        message:
+          "A belépés túl sokáig tartott. Ellenőrizd az internetet, majd próbáld újra.",
+      },
+    },
+    12000,
+  );
 
   if (error) {
     redirect(`/auth/sign-in?error=${encodeURIComponent(error.message)}`);
@@ -34,7 +48,9 @@ export async function signUp(formData: FormData) {
   const fullName = getString(formData.get("fullName"));
 
   if (!email || !password) {
-    redirect("/auth/sign-up?error=Add%20meg%20az%20email-cimet%20es%20a%20jelszot.");
+    redirect(
+      `/auth/sign-up?error=${encodeURIComponent("Add meg az email-címet és a jelszót.")}`,
+    );
   }
 
   const supabase = await createClient();

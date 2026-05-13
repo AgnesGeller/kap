@@ -216,6 +216,14 @@ export default async function QuoteDetailPage({ params, searchParams }: PageProp
             Felmérés megnyitása
           </Link>
         ) : null}
+        {quoteDetail.client_id ? (
+          <Link
+            href={`/app/ugyfelek/${quoteDetail.client_id}`}
+            className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-5 py-3 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
+          >
+            Ügyfél megnyitása
+          </Link>
+        ) : null}
         <Link
           href={`/app/ajanlatok/${quoteDetail.id}/nyomtatas`}
           className="inline-flex rounded-full bg-emerald-300 px-5 py-3 text-sm font-bold text-[#0b1a16] shadow-[0_10px_24px_rgba(5,15,12,0.16)] transition hover:bg-emerald-200"

@@ -1,5 +1,6 @@
 ﻿"use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
@@ -22,7 +23,7 @@ export async function saveSurveyDraft(formData: FormData) {
 
   if (!user) {
     redirect(
-      `/auth/sign-in?message=${encodeURIComponent("Mentett felm\u00e9r\u00e9shez bejelentkez\u00e9s sz\u00fcks\u00e9ges.")}`,
+      `/auth/sign-in?message=${encodeURIComponent("Mentett felméréshez bejelentkezés szükséges.")}`,
     );
   }
 
@@ -34,7 +35,7 @@ export async function saveSurveyDraft(formData: FormData) {
 
   if (profileError || !profile?.company_id) {
     redirect(
-      `/auth/sign-in?error=${encodeURIComponent("Nincs c\u00e9ghez rendelt profil ehhez a felhaszn\u00e1l\u00f3hoz.")}`,
+      `/auth/sign-in?error=${encodeURIComponent("Nincs céghez rendelt profil ehhez a felhasználóhoz.")}`,
     );
   }
 
@@ -42,6 +43,7 @@ export async function saveSurveyDraft(formData: FormData) {
   const clientName = getString(formData.get("clientName"));
   const clientEmail = getString(formData.get("clientEmail"));
   const clientPhone = getString(formData.get("clientPhone"));
+  const sourceClientId = getString(formData.get("sourceClientId"));
   const siteAddress = getString(formData.get("siteAddress"));
   const postalCode = getString(formData.get("postalCode"));
   const settlement = getString(formData.get("settlement"));
@@ -59,6 +61,7 @@ export async function saveSurveyDraft(formData: FormData) {
     clientName,
     clientEmail,
     clientPhone,
+    sourceClientId,
     siteAddress,
     postalCode,
     settlement,
@@ -72,8 +75,23 @@ export async function saveSurveyDraft(formData: FormData) {
   let clientId: string | null = null;
   let clientError: string | null = null;
 
+  if (sourceClientId) {
+    const { data: sourceClient, error: sourceClientError } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", sourceClientId)
+      .eq("company_id", profile.company_id)
+      .maybeSingle();
+
+    if (sourceClientError) {
+      clientError = sourceClientError.message;
+    } else {
+      clientId = sourceClient?.id ?? null;
+    }
+  }
+
   if (clientName || clientEmail || clientPhone) {
-    if (clientEmail) {
+    if (!clientId && clientEmail) {
       const { data: existingClient } = await supabase
         .from("clients")
         .select("id")
@@ -89,6 +107,7 @@ export async function saveSurveyDraft(formData: FormData) {
         .from("clients")
         .update({
           name: clientName || clientEmail || clientPhone || "Névtelen ügyfél",
+          email: clientEmail || null,
           phone: clientPhone || null,
           project_address: siteAddress || null,
           notes: surveyNotes || null,
@@ -103,12 +122,12 @@ export async function saveSurveyDraft(formData: FormData) {
       const { data: client, error: clientInsertError } = await supabase
         .from("clients")
         .insert({
-        company_id: profile.company_id,
-        name: clientName || clientEmail || clientPhone || "Névtelen ügyfél",
-        email: clientEmail || null,
-        phone: clientPhone || null,
-        project_address: siteAddress || null,
-        notes: surveyNotes || null,
+          company_id: profile.company_id,
+          name: clientName || clientEmail || clientPhone || "Névtelen ügyfél",
+          email: clientEmail || null,
+          phone: clientPhone || null,
+          project_address: siteAddress || null,
+          notes: surveyNotes || null,
         })
         .select("id")
         .single();
@@ -125,7 +144,7 @@ export async function saveSurveyDraft(formData: FormData) {
     company_id: profile.company_id,
     client_id: clientId,
     created_by: user.id,
-    title: title || "Mentett felm\u00e9r\u00e9s",
+    title: title || "Mentett felmérés",
     status: "draft",
     source: "internal",
     site_address: siteAddress,
@@ -144,7 +163,11 @@ export async function saveSurveyDraft(formData: FormData) {
     redirect(`/felmero?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect(
-    `/app?message=${encodeURIComponent("Felm\u00e9r\u00e9s piszkozatk\u00e9nt elmentve.")}`,
-  );
+  revalidatePath("/app");
+  revalidatePath("/app/ugyfelek");
+  if (clientId) {
+    revalidatePath(`/app/ugyfelek/${clientId}`);
+  }
+
+  redirect(`/app?message=${encodeURIComponent("Felmérés piszkozatként elmentve.")}`);
 }

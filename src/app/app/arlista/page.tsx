@@ -1,6 +1,10 @@
 import Link from "next/link";
 
-import { createPriceItem, updatePriceItemStatus } from "@/app/app/arlista/actions";
+import {
+  createPriceItem,
+  updatePriceItem,
+  updatePriceItemStatus,
+} from "@/app/app/arlista/actions";
 import { withTimeout } from "@/lib/async";
 import { createQueryTimeoutResponse } from "@/lib/supabase/errors";
 import { createClient } from "@/lib/supabase/server";
@@ -9,6 +13,9 @@ type PageProps = {
   searchParams?: Promise<{
     message?: string;
     error?: string;
+    q?: string;
+    status?: string;
+    category?: string;
   }>;
 };
 
@@ -88,8 +95,37 @@ function Field({
   );
 }
 
+function matchesSearch(item: PriceItem, query: string) {
+  if (!query) return true;
+
+  const haystack = [
+    item.name,
+    item.category,
+    item.unit,
+    item.notes,
+    item.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(query);
+}
+
 export default async function PriceListPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
+  const searchQuery = (params.q ?? "").trim();
+  const statusFilter = (params.status ?? "").trim();
+  const categoryFilter = (params.category ?? "").trim();
+  const normalizedSearchQuery = searchQuery.toLowerCase();
+  const returnParams = new URLSearchParams(
+    Object.entries({
+      q: searchQuery,
+      status: statusFilter,
+      category: categoryFilter,
+    }).filter(([, value]) => value),
+  );
+  const returnTo = `/app/arlista${returnParams.toString() ? `?${returnParams.toString()}` : ""}`;
   const supabase = await createClient();
 
   const { data, error } = await withTimeout(
@@ -107,6 +143,14 @@ export default async function PriceListPage({ searchParams }: PageProps) {
 
   const priceItems = (data ?? []) as PriceItem[];
   const setupMessage = error?.message ?? "";
+  const categories = Array.from(
+    new Set(priceItems.map((item) => item.category).filter(Boolean)),
+  ).sort((a, b) => String(a).localeCompare(String(b), "hu"));
+  const visiblePriceItems = priceItems.filter((item) => {
+    const statusMatches = statusFilter ? item.status === statusFilter : true;
+    const categoryMatches = categoryFilter ? item.category === categoryFilter : true;
+    return statusMatches && categoryMatches && matchesSearch(item, normalizedSearchQuery);
+  });
   const activeCount = priceItems.filter((item) => item.status === "active").length;
   const categoryCount = new Set(
     priceItems.map((item) => item.category).filter(Boolean),
@@ -123,8 +167,8 @@ export default async function PriceListPage({ searchParams }: PageProps) {
             Árlista
           </h1>
           <p className="mt-3 max-w-2xl text-base font-medium leading-8 text-[#44382e]">
-            Itt lesznek a céges egységárak, amelyekből később gyorsan épülhetnek
-            az ajánlati tételek.
+            Céges egységárak, amelyekből gyorsan épülhetnek az ajánlati
+            tételek. A tételek itt már szerkeszthetők is.
           </p>
         </div>
         <Link
@@ -242,53 +286,190 @@ export default async function PriceListPage({ searchParams }: PageProps) {
             </h2>
           </div>
           <span className="rounded-full border border-emerald-300 bg-emerald-100 px-4 py-2 text-sm font-bold text-[#123f2d]">
-            Import előkészítve
+            {visiblePriceItems.length} találat
           </span>
         </div>
 
-        {priceItems.length ? (
+        <form className="mt-6 grid gap-3 rounded-[20px] border-2 border-[#ded0bd] bg-[#fff8ee] p-4 md:grid-cols-[1fr_0.45fr_0.45fr_auto_auto] md:items-end">
+          <div className="space-y-2">
+            <label htmlFor="q" className="text-sm font-bold text-[#2a211a]">
+              Gyors keresés
+            </label>
+            <input
+              id="q"
+              name="q"
+              defaultValue={searchQuery}
+              placeholder="Tétel, kategória, egység vagy megjegyzés"
+              className="w-full rounded-[18px] border-2 border-[#d3c3ad] bg-white px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition placeholder:text-[#8b7b68] focus:border-[#1e5a40]"
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="category" className="text-sm font-bold text-[#2a211a]">
+              Kategória
+            </label>
+            <select
+              id="category"
+              name="category"
+              defaultValue={categoryFilter}
+              className="w-full rounded-[18px] border-2 border-[#d3c3ad] bg-white px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition focus:border-[#1e5a40]"
+            >
+              <option value="">Összes kategória</option>
+              {categories.map((category) => (
+                <option key={category} value={category ?? ""}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="status" className="text-sm font-bold text-[#2a211a]">
+              Státusz
+            </label>
+            <select
+              id="status"
+              name="status"
+              defaultValue={statusFilter}
+              className="w-full rounded-[18px] border-2 border-[#d3c3ad] bg-white px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition focus:border-[#1e5a40]"
+            >
+              <option value="">Összes státusz</option>
+              <option value="active">Aktív</option>
+              <option value="inactive">Inaktív</option>
+              <option value="archived">Archivált</option>
+            </select>
+          </div>
+          <button className="rounded-full bg-[#123f2d] px-6 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.14)] transition hover:bg-[#1d4d39]">
+            Szűrés
+          </button>
+          {searchQuery || statusFilter || categoryFilter ? (
+            <Link
+              href="/app/arlista"
+              className="rounded-full border-2 border-[#d3c3ad] bg-white px-6 py-3 text-center text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
+            >
+              Törlés
+            </Link>
+          ) : null}
+        </form>
+
+        {visiblePriceItems.length ? (
           <div className="mt-6 grid gap-3">
-            {priceItems.map((item) => (
+            {visiblePriceItems.map((item) => (
               <article
                 key={item.id}
-                className="grid gap-3 rounded-[18px] border-2 border-[#ded0bd] bg-[#fff8ee] px-4 py-4 md:grid-cols-[1fr_auto_auto] md:items-center"
+                className="rounded-[18px] border-2 border-[#ded0bd] bg-[#fff8ee] px-4 py-4"
               >
-                <div>
-                  <p className="text-lg font-bold text-[#17130f]">{item.name}</p>
-                  <p className="mt-1 text-sm font-semibold text-[#44382e]">
-                    {item.category || "Nincs kategória"} • frissítve:{" "}
-                    {formatDate(item.updated_at)}
-                  </p>
-                  {item.notes ? (
-                    <p className="mt-2 text-sm font-medium leading-6 text-[#44382e]">
-                      {item.notes}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-bold text-[#17130f]">{item.name}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#44382e]">
+                      {item.category || "Nincs kategória"} • frissítve:{" "}
+                      {formatDate(item.updated_at)}
                     </p>
-                  ) : null}
+                  </div>
+                  <div className="text-left md:text-right">
+                    <span className="w-fit rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-bold text-[#123f2d]">
+                      {formatStatus(item.status)}
+                    </span>
+                    <p className="mt-2 text-lg font-bold text-[#17130f]">
+                      {formatMoney(item.unit_price)}
+                    </p>
+                    <p className="text-sm font-semibold text-[#44382e]">
+                      / {item.unit} + ÁFA {item.vat_rate ?? 27}%
+                    </p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="w-fit rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-bold text-[#123f2d]">
-                    {formatStatus(item.status)}
-                  </span>
-                  <form action={updatePriceItemStatus}>
-                    <input type="hidden" name="priceItemId" value={item.id} />
-                    <input
-                      type="hidden"
+
+                <form action={updatePriceItem} className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.65fr_0.28fr_0.35fr_0.28fr_0.4fr]">
+                  <input type="hidden" name="priceItemId" value={item.id} />
+                  <input type="hidden" name="returnTo" value={returnTo} />
+                  <Field
+                    id={`name-${item.id}`}
+                    label="Tétel neve"
+                    name="name"
+                    placeholder="Tétel neve"
+                    defaultValue={item.name}
+                  />
+                  <Field
+                    id={`category-${item.id}`}
+                    label="Kategória"
+                    name="category"
+                    placeholder="Kategória"
+                    defaultValue={item.category ?? ""}
+                  />
+                  <Field
+                    id={`unit-${item.id}`}
+                    label="Egység"
+                    name="unit"
+                    placeholder="db"
+                    defaultValue={item.unit}
+                  />
+                  <Field
+                    id={`unitPrice-${item.id}`}
+                    label="Egységár"
+                    name="unitPrice"
+                    type="number"
+                    placeholder="0"
+                    defaultValue={item.unit_price ?? 0}
+                  />
+                  <Field
+                    id={`vatRate-${item.id}`}
+                    label="ÁFA %"
+                    name="vatRate"
+                    type="number"
+                    placeholder="27"
+                    defaultValue={item.vat_rate ?? 27}
+                  />
+                  <div className="space-y-2">
+                    <label
+                      htmlFor={`status-${item.id}`}
+                      className="text-sm font-bold text-[#2a211a]"
+                    >
+                      Státusz
+                    </label>
+                    <select
+                      id={`status-${item.id}`}
                       name="status"
-                      value={item.status === "active" ? "inactive" : "active"}
+                      defaultValue={item.status ?? "active"}
+                      className="w-full rounded-[18px] border-2 border-[#d3c3ad] bg-[#fff8ee] px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition focus:border-[#1e5a40] focus:bg-white"
+                    >
+                      <option value="active">Aktív</option>
+                      <option value="inactive">Inaktív</option>
+                      <option value="archived">Archivált</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2 lg:col-span-5">
+                    <label
+                      htmlFor={`notes-${item.id}`}
+                      className="text-sm font-bold text-[#2a211a]"
+                    >
+                      Megjegyzés
+                    </label>
+                    <input
+                      id={`notes-${item.id}`}
+                      name="notes"
+                      defaultValue={item.notes ?? ""}
+                      placeholder="Belső megjegyzés"
+                      className="w-full rounded-[18px] border-2 border-[#d3c3ad] bg-[#fff8ee] px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition placeholder:text-[#8b7b68] focus:border-[#1e5a40] focus:bg-white"
                     />
-                    <button className="rounded-full border border-[#d3c3ad] bg-white px-3 py-1 text-xs font-bold text-[#4c4035] transition hover:bg-[#f6efe5]">
-                      {item.status === "active" ? "Inaktiválás" : "Aktiválás"}
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <button className="rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.14)] transition hover:bg-[#1d4d39]">
+                      Módosítás mentése
                     </button>
-                  </form>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-[#17130f]">
-                    {formatMoney(item.unit_price)}
-                  </p>
-                  <p className="text-sm font-semibold text-[#44382e]">
-                    / {item.unit} + ÁFA {item.vat_rate ?? 27}%
-                  </p>
-                </div>
+                  </div>
+                </form>
+
+                <form action={updatePriceItemStatus} className="mt-3">
+                  <input type="hidden" name="priceItemId" value={item.id} />
+                  <input type="hidden" name="returnTo" value={returnTo} />
+                  <input
+                    type="hidden"
+                    name="status"
+                    value={item.status === "active" ? "inactive" : "active"}
+                  />
+                  <button className="rounded-full border border-[#d3c3ad] bg-white px-3 py-1 text-xs font-bold text-[#4c4035] transition hover:bg-[#f6efe5]">
+                    {item.status === "active" ? "Gyors inaktiválás" : "Gyors aktiválás"}
+                  </button>
+                </form>
               </article>
             ))}
           </div>

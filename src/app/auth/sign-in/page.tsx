@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 
 import { signIn } from "@/app/auth/actions";
+import { SignInSubmitButton } from "@/app/auth/sign-in/submit-button";
 import { hasSupabaseEnv } from "@/lib/supabase/config";
 
 type PageProps = {
@@ -85,9 +86,7 @@ export default async function SignInPage({ searchParams }: PageProps) {
               />
             </div>
 
-            <button disabled={!configured} className="inline-flex w-full items-center justify-center rounded-full bg-[#1e5a40] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#184a34] disabled:cursor-not-allowed disabled:opacity-60">
-              Bejelentkezés
-            </button>
+            <SignInSubmitButton disabled={!configured} />
           </form>
 
           <div className="mt-6 flex flex-wrap gap-3 text-sm">

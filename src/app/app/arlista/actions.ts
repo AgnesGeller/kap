@@ -80,9 +80,13 @@ export async function createPriceItem(formData: FormData) {
 export async function updatePriceItemStatus(formData: FormData) {
   const priceItemId = getString(formData.get("priceItemId"));
   const status = getString(formData.get("status"));
+  const returnTo = getString(formData.get("returnTo"));
+  const safeReturnTo = returnTo.startsWith("/app/arlista") ? returnTo : "/app/arlista";
 
   if (!priceItemId || !allowedStatuses.has(status)) {
-    redirect(`/app/arlista?error=${encodeURIComponent("Hibás árlista tétel vagy státusz.")}`);
+    redirect(
+      `${safeReturnTo}?error=${encodeURIComponent("Hibás árlista tétel vagy státusz.")}`,
+    );
   }
 
   const { supabase, companyId } = await getCompanyId();
@@ -94,9 +98,52 @@ export async function updatePriceItemStatus(formData: FormData) {
     .eq("company_id", companyId);
 
   if (error) {
-    redirect(`/app/arlista?error=${encodeURIComponent(error.message)}`);
+    redirect(`${safeReturnTo}?error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/app/arlista");
-  redirect(`/app/arlista?message=${encodeURIComponent("Árlista státusz frissítve.")}`);
+  redirect(`${safeReturnTo}?message=${encodeURIComponent("Árlista státusz frissítve.")}`);
+}
+
+export async function updatePriceItem(formData: FormData) {
+  const priceItemId = getString(formData.get("priceItemId"));
+  const name = getString(formData.get("name"));
+  const category = getString(formData.get("category"));
+  const unit = getString(formData.get("unit")) || "db";
+  const unitPrice = getNumber(formData.get("unitPrice"));
+  const vatRate = getNumber(formData.get("vatRate")) || 27;
+  const status = getString(formData.get("status")) || "active";
+  const notes = getString(formData.get("notes"));
+  const returnTo = getString(formData.get("returnTo"));
+  const safeReturnTo = returnTo.startsWith("/app/arlista") ? returnTo : "/app/arlista";
+
+  if (!priceItemId || !name || !allowedStatuses.has(status)) {
+    redirect(
+      `${safeReturnTo}?error=${encodeURIComponent("Hiányzó tételnév vagy hibás státusz.")}`,
+    );
+  }
+
+  const { supabase, companyId } = await getCompanyId();
+
+  const { error } = await supabase
+    .from("price_items")
+    .update({
+      name,
+      category: category || null,
+      unit,
+      unit_price: unitPrice,
+      vat_rate: vatRate,
+      status,
+      notes: notes || null,
+    })
+    .eq("id", priceItemId)
+    .eq("company_id", companyId);
+
+  if (error) {
+    redirect(`${safeReturnTo}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/arlista");
+  redirect(`${safeReturnTo}?message=${encodeURIComponent("Árlista tétel frissítve.")}`);
 }

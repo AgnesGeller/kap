@@ -24,6 +24,7 @@ type PageProps = {
 
 type SurveyDetail = {
   id: string;
+  client_id: string | null;
   title: string | null;
   status: string | null;
   source: string | null;
@@ -46,6 +47,13 @@ type QuoteRow = {
   status: string | null;
   total: number | null;
   created_at: string | null;
+};
+
+type ClientRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
 };
 
 const statusOptions = [
@@ -126,7 +134,7 @@ export default async function SurveyDetailPage({ params, searchParams }: PagePro
     supabase
       .from("site_surveys")
       .select(
-        "id, title, status, source, site_address, postal_code, settlement, project_goal, budget_tier, service_keys, form_payload, map_payload, estimated_total, last_saved_at, created_at",
+        "id, client_id, title, status, source, site_address, postal_code, settlement, project_goal, budget_tier, service_keys, form_payload, map_payload, estimated_total, last_saved_at, created_at",
       )
       .eq("id", id)
       .single(),
@@ -141,6 +149,14 @@ export default async function SurveyDetailPage({ params, searchParams }: PagePro
   }
 
   const survey = data as SurveyDetail;
+  const { data: client } = survey.client_id
+    ? await supabase
+        .from("clients")
+        .select("id, name, email, phone")
+        .eq("id", survey.client_id)
+        .maybeSingle()
+    : { data: null };
+
   const { data: quotes } = await withTimeout(
     supabase
       .from("quotes")
@@ -152,6 +168,7 @@ export default async function SurveyDetailPage({ params, searchParams }: PagePro
   );
 
   const services = survey.service_keys ?? [];
+  const clientRow = client as ClientRow | null;
   const quoteRows = (quotes ?? []) as QuoteRow[];
   const clientName = getPayloadText(survey.form_payload, "clientName");
   const clientEmail = getPayloadText(survey.form_payload, "clientEmail");
@@ -161,11 +178,19 @@ export default async function SurveyDetailPage({ params, searchParams }: PagePro
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-5 py-8 lg:px-10 lg:py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
-          href="/app"
+          href="/app/felmeresek"
           className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-5 py-3 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
         >
-          Vissza az adminhoz
+          Vissza a felmérésekhez
         </Link>
+        {clientRow ? (
+          <Link
+            href={`/app/ugyfelek/${clientRow.id}`}
+            className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-5 py-3 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
+          >
+            Ügyfél megnyitása
+          </Link>
+        ) : null}
         <Link
           href="/felmero"
           className="inline-flex rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]"
@@ -259,10 +284,18 @@ export default async function SurveyDetailPage({ params, searchParams }: PagePro
             Ügyféladatok
           </p>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <DetailRow label="Név" value={clientName} />
-            <DetailRow label="Email" value={clientEmail} />
-            <DetailRow label="Telefon" value={clientPhone} />
+            <DetailRow label="Név" value={clientRow?.name || clientName} />
+            <DetailRow label="Email" value={clientRow?.email || clientEmail} />
+            <DetailRow label="Telefon" value={clientRow?.phone || clientPhone} />
           </div>
+          {clientRow ? (
+            <Link
+              href={`/app/ugyfelek/${clientRow.id}`}
+              className="mt-5 inline-flex rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]"
+            >
+              Ügyfél adatlap megnyitása
+            </Link>
+          ) : null}
         </article>
       </section>
 
@@ -275,13 +308,14 @@ export default async function SurveyDetailPage({ params, searchParams }: PagePro
             Ajánlat vázlat ebből a felmérésből
           </h2>
           <p className="mt-3 text-base font-medium leading-8 text-[#44382e]">
-            Ez még nem végleges árazás. A kiválasztott munkákból létrehoz egy
-            ajánlat vázlatot, amit később árakkal és részletekkel lehet bővíteni.
+            {quoteRows.length
+              ? "Ehhez a felméréshez már van kapcsolódó ajánlat. A gomb a meglévő ajánlatot nyitja meg, nem készít duplikáltat."
+              : "Ez még nem végleges árazás. A kiválasztott munkákból létrehoz egy ajánlat vázlatot, amit később árakkal és részletekkel lehet bővíteni."}
           </p>
           <form action={createQuoteFromSurvey} className="mt-5">
             <input type="hidden" name="surveyId" value={survey.id} />
             <button className="inline-flex rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-              Ajánlat vázlat létrehozása
+              {quoteRows.length ? "Meglévő ajánlat megnyitása" : "Ajánlat vázlat létrehozása"}
             </button>
           </form>
         </article>

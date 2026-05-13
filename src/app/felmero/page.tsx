@@ -86,15 +86,11 @@ export default async function FelmeroPage({ searchParams }: PageProps) {
     userEmail = data.user?.email ?? null;
 
     if (data.user && sourceClientId) {
-      const { data: client } = await withTimeout(
-        supabase
-          .from("clients")
-          .select("id, name, email, phone, project_address, notes")
-          .eq("id", sourceClientId)
-          .single(),
-        { data: null, error: null },
-        3500,
-      );
+      const { data: client } = await supabase
+        .from("clients")
+        .select("id, name, email, phone, project_address, notes")
+        .eq("id", sourceClientId)
+        .maybeSingle();
 
       prefilledClient = client;
     }
@@ -148,6 +144,12 @@ export default async function FelmeroPage({ searchParams }: PageProps) {
       {params.error ? (
         <section className="rounded-[20px] border-2 border-rose-300 bg-rose-50 px-5 py-4 text-base font-semibold leading-7 text-rose-950">
           {params.error}
+        </section>
+      ) : null}
+
+      {prefilledClient ? (
+        <section className="rounded-[20px] border-2 border-emerald-300 bg-emerald-50 px-5 py-4 text-base font-semibold leading-7 text-emerald-950">
+          Az űrlap elő van töltve ehhez az ügyfélhez: {prefilledClient.name}.
         </section>
       ) : null}
 
