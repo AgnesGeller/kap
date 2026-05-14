@@ -15,6 +15,7 @@ export type PayrollEmployeeOption = {
 type PayrollFormProps = {
   employees: PayrollEmployeeOption[];
   today: string;
+  returnTo?: string;
 };
 
 function toNumber(value: string) {
@@ -36,7 +37,7 @@ function Field({
   name,
   value,
   placeholder,
-  type = "number",
+  type = "text",
   onChange,
 }: {
   id: string;
@@ -56,6 +57,7 @@ function Field({
         id={id}
         name={name}
         type={type}
+        inputMode={type === "text" ? "decimal" : undefined}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -65,7 +67,11 @@ function Field({
   );
 }
 
-export function PayrollForm({ employees, today }: PayrollFormProps) {
+export function PayrollForm({
+  employees,
+  today,
+  returnTo = "/app/mukodes",
+}: PayrollFormProps) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [payrollDate, setPayrollDate] = useState(today);
   const [normalDays, setNormalDays] = useState("");
@@ -114,6 +120,7 @@ export function PayrollForm({ employees, today }: PayrollFormProps) {
 
   return (
     <form action={createPayrollEntry} className="mt-5 grid gap-4 md:grid-cols-2">
+      <input type="hidden" name="returnTo" value={returnTo} />
       <div className="space-y-2 md:col-span-2">
         <label htmlFor="employeeId" className="text-sm font-bold text-[#2a211a]">
           Dolgozó
@@ -217,7 +224,7 @@ export function PayrollForm({ employees, today }: PayrollFormProps) {
       />
       <Field
         id="customAmount"
-        label="Egyéni összeg"
+        label="Téli pénz / egyéni összeg"
         name="customAmount"
         value={customAmount}
         placeholder="0"
@@ -231,7 +238,7 @@ export function PayrollForm({ employees, today }: PayrollFormProps) {
         <textarea
           id="payrollNotes"
           name="notes"
-          placeholder="Pl. munkaruha, téli pénz, korrekció"
+          placeholder="Pl. munkaruha, téli pénz részlete, korrekció"
           rows={4}
           className="w-full resize-y rounded-[18px] border-2 border-[#d3c3ad] bg-[#fff8ee] px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition placeholder:text-[#8b7b68] focus:border-[#1e5a40] focus:bg-white"
         />
@@ -245,7 +252,7 @@ export function PayrollForm({ employees, today }: PayrollFormProps) {
           {formatMoney(estimatedTotal)}
         </p>
         <p className="mt-2 text-sm font-semibold leading-7 text-[#44382e]">
-          Nap x napi bér + óra x órabér + túlóra + bónusz + egyéni összeg -
+          Nap x napi bér + óra x órabér + túlóra + bónusz + téli pénz / egyéni összeg -
           előleg - törlesztés.
         </p>
       </div>

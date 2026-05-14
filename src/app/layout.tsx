@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "KAP",
   description:
-    "Felm\u00e9r\u00e9si, aj\u00e1nlatkezel\u00e9si \u00e9s admin rendszer kivitelez\u0151 c\u00e9geknek.",
+    "Pénzügyi, bevételi, kiadási és munkalap admin rendszer.",
 };
 
 export default async function RootLayout({
@@ -29,10 +29,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const brandLabel = "Kivitelez\u0151i Admin Platform";
-  const loggedInLabel = "Bel\u00e9pve";
-  const loggedOutLabel = "Nincs bel\u00e9pve";
-  const surveyFormLabel = "Felm\u00e9r\u0151 \u0171rlap";
+  const brandLabel = "Pénzügyi Admin Platform";
+  const loggedInLabel = "Belépve";
+  const loggedOutLabel = "Nincs belépve";
+  const workLogLabel = "Munkalap";
 
   let userEmail: string | null = null;
 
@@ -84,10 +84,10 @@ export default async function RootLayout({
                 </div>
                 <nav className="flex items-center gap-2 sm:gap-3">
                   <Link
-                    href="/felmero"
+                    href="/app/mukodes"
                     className="rounded-full bg-[#0f3f2c] px-4 py-2 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.28)] transition hover:bg-[#1d4d39]"
                   >
-                    {surveyFormLabel}
+                    {workLogLabel}
                   </Link>
                   <Link
                     href="/app"

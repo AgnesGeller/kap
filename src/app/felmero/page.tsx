@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PostalCityFields } from "@/app/felmero/PostalCityFields";
 import { saveSurveyDraft } from "@/app/felmero/actions";
 import { withTimeout } from "@/lib/async";
 import { hasSupabaseEnv } from "@/lib/supabase/config";
@@ -214,21 +215,7 @@ export default async function FelmeroPage({ searchParams }: PageProps) {
                 defaultValue={prefilledClient?.project_address ?? ""}
               />
             </div>
-            <div className="mt-5 grid gap-5 md:grid-cols-[0.35fr_0.65fr]">
-              <InputField
-                id="postalCode"
-                label="Irányítószám"
-                name="postalCode"
-                placeholder="2013"
-                type="text"
-              />
-              <InputField
-                id="settlement"
-                label="Település"
-                name="settlement"
-                placeholder="Pl. Pomáz"
-              />
-            </div>
+            <PostalCityFields />
           </article>
 
           <article className="rounded-[24px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)] lg:p-6">

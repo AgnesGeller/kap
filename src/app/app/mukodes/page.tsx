@@ -1,13 +1,18 @@
 import Link from "next/link";
 
-import {
-  createEmployee,
-  createExpenseEntry,
-  createIncomeEntry,
-  createWorkLog,
-} from "@/app/app/mukodes/actions";
-import { PayrollForm } from "@/app/app/mukodes/PayrollForm";
+import { importWorkbookPriceItems } from "@/app/app/arlista/actions";
+import { deleteWorkLog } from "@/app/app/mukodes/actions";
+import { ConfirmSubmitButton } from "@/app/app/mukodes/ConfirmSubmitButton";
+import { WorkLogForm } from "@/app/app/mukodes/WorkLogForm";
 import { withTimeout } from "@/lib/async";
+import {
+  getSettlementDetailItemHeaders,
+  getSettlementDetailUnitOptions,
+  getWorkbookCustomerOptions,
+  getWorkbookPriceItems,
+  type WorkbookCustomerOption,
+  type WorkbookPriceItemOption,
+} from "@/lib/budget/workbookData";
 import { createQueryFallbackSuccess } from "@/lib/supabase/errors";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,53 +29,59 @@ type WorkLogRow = {
   customer_name: string;
   task_summary: string;
   total_amount: number | null;
+  labor_total: number | null;
+  material_total: number | null;
+  work_hours: number | null;
   status: string | null;
 };
 
-type IncomeRow = {
+type WorkLogItemRow = {
   id: string;
-  income_date: string;
-  customer_name: string;
-  amount: number | null;
-  status: string | null;
+  work_log_id: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  total_amount: number | null;
 };
 
-type ExpenseRow = {
-  id: string;
-  expense_date: string;
-  vendor_name: string;
-  item_name: string;
-  gross_amount: number | null;
-  expense_type: string | null;
-};
-
-type EmployeeRow = {
+type ClientRow = {
   id: string;
   name: string;
-  role_title: string | null;
+  email: string | null;
   phone: string | null;
-  daily_rate: number | null;
-  hourly_rate: number | null;
-  overtime_rate: number | null;
-  status: string | null;
+  billing_address: string | null;
+  project_address: string | null;
+  notes: string | null;
 };
 
-type PayrollRow = {
+type PriceItemRow = {
   id: string;
-  payroll_date: string;
-  total_amount: number | null;
-  normal_days: number | null;
-  normal_hours: number | null;
-  overtime_hours: number | null;
-  employees:
-    | {
-        name: string | null;
-      }
-    | Array<{
-        name: string | null;
-      }>
-    | null;
+  name: string;
+  category: string | null;
+  unit: string;
+  unit_price: number | null;
+  vat_rate: number | null;
+  notes: string | null;
+  source: string | null;
 };
+
+type PeriodStats = {
+  count: number;
+  amount: number;
+};
+
+type ItemStat = {
+  key: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  amount: number;
+};
+
+const QUERY_TIMEOUT_MS = 3500;
+const WORK_LOG_LIMIT = 120;
+const WORK_LOG_ITEM_LIMIT = 300;
+const CLIENT_LIMIT = 300;
 
 function formatMoney(value: number | null | undefined) {
   return new Intl.NumberFormat("hu-HU", {
@@ -80,469 +91,416 @@ function formatMoney(value: number | null | undefined) {
   }).format(value ?? 0);
 }
 
+function formatNumber(value: number | null | undefined) {
+  return new Intl.NumberFormat("hu-HU", {
+    maximumFractionDigits: 2,
+  }).format(value ?? 0);
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "Nincs dátum";
+
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const date = new Date(year, month - 1, day);
 
   return new Intl.DateTimeFormat("hu-HU", {
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
 }
 
-function getPayrollEmployeeName(row: PayrollRow) {
-  if (Array.isArray(row.employees)) {
-    return row.employees[0]?.name ?? "Nincs dolgozó";
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getPeriodStats<T>(
+  rows: T[],
+  getDate: (row: T) => string | null | undefined,
+  getAmount: (row: T) => number | null | undefined,
+  predicate: (date: string) => boolean,
+): PeriodStats {
+  return rows.reduce(
+    (stats, row) => {
+      const date = getDate(row);
+
+      if (!date || !predicate(date)) {
+        return stats;
+      }
+
+      return {
+        count: stats.count + 1,
+        amount: stats.amount + Number(getAmount(row) ?? 0),
+      };
+    },
+    { count: 0, amount: 0 },
+  );
+}
+
+function getItemStats(
+  items: WorkLogItemRow[],
+  workLogDateById: Map<string, string>,
+  predicate: (date: string) => boolean,
+) {
+  const grouped = new Map<string, ItemStat>();
+
+  for (const item of items) {
+    const workDate = workLogDateById.get(item.work_log_id);
+
+    if (!workDate || !predicate(workDate)) {
+      continue;
+    }
+
+    const name = item.name || "Nincs tételnév";
+    const unit = item.unit || "db";
+    const key = `${name}__${unit}`;
+    const current = grouped.get(key) ?? {
+      key,
+      name,
+      unit,
+      quantity: 0,
+      amount: 0,
+    };
+
+    current.quantity += Number(item.quantity ?? 0);
+    current.amount += Number(item.total_amount ?? 0);
+    grouped.set(key, current);
   }
 
-  return row.employees?.name ?? "Nincs dolgozó";
-}
-
-function Field({
-  id,
-  label,
-  name,
-  placeholder,
-  type = "text",
-  defaultValue = "",
-}: {
-  id: string;
-  label: string;
-  name: string;
-  placeholder: string;
-  type?: string;
-  defaultValue?: string | number;
-}) {
-  return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-bold text-[#2a211a]">
-        {label}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        className="w-full rounded-[18px] border-2 border-[#d3c3ad] bg-[#fff8ee] px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition placeholder:text-[#8b7b68] focus:border-[#1e5a40] focus:bg-white"
-      />
-    </div>
-  );
-}
-
-function TextArea({
-  id,
-  label,
-  name,
-  placeholder,
-}: {
-  id: string;
-  label: string;
-  name: string;
-  placeholder: string;
-}) {
-  return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-bold text-[#2a211a]">
-        {label}
-      </label>
-      <textarea
-        id={id}
-        name={name}
-        placeholder={placeholder}
-        rows={4}
-        className="w-full resize-y rounded-[18px] border-2 border-[#d3c3ad] bg-[#fff8ee] px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition placeholder:text-[#8b7b68] focus:border-[#1e5a40] focus:bg-white"
-      />
-    </div>
-  );
-}
-
-function SelectField({
-  id,
-  label,
-  name,
-  options,
-}: {
-  id: string;
-  label: string;
-  name: string;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-bold text-[#2a211a]">
-        {label}
-      </label>
-      <select
-        id={id}
-        name={name}
-        className="w-full rounded-[18px] border-2 border-[#d3c3ad] bg-[#fff8ee] px-4 py-3 text-base font-semibold text-[#17130f] outline-none transition focus:border-[#1e5a40] focus:bg-white"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+  return Array.from(grouped.values()).sort((a, b) => b.amount - a.amount);
 }
 
 export default async function OperationsPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateKey();
+  const currentMonth = today.slice(0, 7);
+  const currentYear = today.slice(0, 4);
+  const isToday = (date: string) => date.slice(0, 10) === today;
+  const isCurrentMonth = (date: string) => date.slice(0, 7) === currentMonth;
+  const isCurrentYear = (date: string) => date.slice(0, 4) === currentYear;
+  const settlementTaskOptions = getSettlementDetailItemHeaders();
+  const settlementUnitOptions = getSettlementDetailUnitOptions();
+  const workbookCustomers = getWorkbookCustomerOptions();
+  const workbookPriceItems = getWorkbookPriceItems();
 
-  const [workLogsResult, incomeResult, expenseResult] = await Promise.all([
+  const [
+    workLogsResult,
+    workLogItemsResult,
+    clientsResult,
+    priceItemsResult,
+  ] = await Promise.all([
     withTimeout(
       supabase
         .from("work_logs")
-        .select("id, work_date, customer_name, task_summary, total_amount, status")
-        .order("work_date", { ascending: false })
-        .limit(8),
-      createQueryFallbackSuccess([]),
-      6000,
-    ),
-    withTimeout(
-      supabase
-        .from("income_entries")
-        .select("id, income_date, customer_name, amount, status")
-        .order("income_date", { ascending: false })
-        .limit(8),
-      createQueryFallbackSuccess([]),
-      6000,
-    ),
-    withTimeout(
-      supabase
-        .from("expense_entries")
-        .select("id, expense_date, vendor_name, item_name, gross_amount, expense_type")
-        .order("expense_date", { ascending: false })
-        .limit(8),
-      createQueryFallbackSuccess([]),
-      6000,
-    ),
-  ]);
-  const [employeesResult, payrollResult] = await Promise.all([
-    withTimeout(
-      supabase
-        .from("employees")
-        .select("id, name, role_title, phone, daily_rate, hourly_rate, overtime_rate, status")
-        .order("name", { ascending: true })
-        .limit(100),
-      createQueryFallbackSuccess([]),
-      6000,
-    ),
-    withTimeout(
-      supabase
-        .from("employee_payroll_entries")
         .select(
-          "id, payroll_date, total_amount, normal_days, normal_hours, overtime_hours, employees(name)",
+          "id, work_date, customer_name, task_summary, total_amount, labor_total, material_total, work_hours, status",
         )
-        .order("payroll_date", { ascending: false })
-        .limit(8),
+        .order("work_date", { ascending: false })
+        .limit(WORK_LOG_LIMIT),
       createQueryFallbackSuccess([]),
-      6000,
+      QUERY_TIMEOUT_MS,
+    ),
+    withTimeout(
+      supabase
+        .from("work_log_items")
+        .select("id, work_log_id, name, quantity, unit, total_amount")
+        .order("created_at", { ascending: false })
+        .limit(WORK_LOG_ITEM_LIMIT),
+      createQueryFallbackSuccess([]),
+      QUERY_TIMEOUT_MS,
+    ),
+    withTimeout(
+      supabase
+        .from("clients")
+        .select("id, name, email, phone, billing_address, project_address, notes")
+        .order("name", { ascending: true })
+        .limit(CLIENT_LIMIT),
+      createQueryFallbackSuccess([]),
+      QUERY_TIMEOUT_MS,
+    ),
+    withTimeout(
+      supabase
+        .from("price_items")
+        .select("id, name, category, unit, unit_price, vat_rate, notes, source")
+        .eq("status", "active")
+        .order("name", { ascending: true })
+        .limit(1500),
+      createQueryFallbackSuccess([]),
+      QUERY_TIMEOUT_MS,
     ),
   ]);
 
   const workLogs = (workLogsResult.data ?? []) as WorkLogRow[];
-  const incomes = (incomeResult.data ?? []) as IncomeRow[];
-  const expenses = (expenseResult.data ?? []) as ExpenseRow[];
-  const employees = (employeesResult.data ?? []) as EmployeeRow[];
-  const payrollRows = (payrollResult.data ?? []) as unknown as PayrollRow[];
-  const payrollEmployeeOptions = employees.map((employee) => ({
-    id: employee.id,
-    name: employee.name,
-    dailyRate: employee.daily_rate ?? 0,
-    hourlyRate: employee.hourly_rate ?? 0,
-    overtimeRate: employee.overtime_rate ?? 5000,
-  }));
+  const workLogItems = (workLogItemsResult.data ?? []) as WorkLogItemRow[];
+  const clients = (clientsResult.data ?? []) as ClientRow[];
+  const priceItems = (priceItemsResult.data ?? []) as PriceItemRow[];
+  const workLogDateById = new Map(workLogs.map((row) => [row.id, row.work_date]));
+
+  const customerOptions = mergeCustomerOptions(
+    clients.map((client) => ({
+      id: client.id,
+      name: client.name,
+      address: client.project_address ?? client.billing_address ?? "",
+      phone: client.phone ?? "",
+      email: client.email ?? "",
+      notes: client.notes ?? "",
+    })),
+    workbookCustomers,
+  );
+  const priceOptions = mergePriceOptions(
+    priceItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      category: item.category ?? "",
+      unit: item.unit,
+      unitPrice: item.unit_price ?? 0,
+      vatRate: item.vat_rate ?? 27,
+      notes: item.notes ?? "",
+      source: item.source ?? "",
+    })),
+    workbookPriceItems,
+  );
+  const importedPriceKeys = new Set(
+    priceItems.map((item) => `${normalizeKey(item.name)}__${normalizeKey(item.unit)}`),
+  );
+  const workbookPriceImportCount = workbookPriceItems.filter(
+    (item) => !importedPriceKeys.has(`${normalizeKey(item.name)}__${normalizeKey(item.unit)}`),
+  ).length;
   const setupError =
     workLogsResult.error?.message ??
-    incomeResult.error?.message ??
-    expenseResult.error?.message ??
-    employeesResult.error?.message ??
-    payrollResult.error?.message ??
+    workLogItemsResult.error?.message ??
+    clientsResult.error?.message ??
+    priceItemsResult.error?.message ??
     "";
-  const incomeTotal = incomes.reduce((sum, row) => sum + (row.amount ?? 0), 0);
-  const expenseTotal = expenses.reduce((sum, row) => sum + (row.gross_amount ?? 0), 0);
-  const workLogTotal = workLogs.reduce((sum, row) => sum + (row.total_amount ?? 0), 0);
-  const payrollTotal = payrollRows.reduce((sum, row) => sum + (row.total_amount ?? 0), 0);
+
+  const dailyWork = getPeriodStats(
+    workLogs,
+    (row) => row.work_date,
+    (row) => row.total_amount,
+    isToday,
+  );
+  const monthlyWork = getPeriodStats(
+    workLogs,
+    (row) => row.work_date,
+    (row) => row.total_amount,
+    isCurrentMonth,
+  );
+  const yearlyWork = getPeriodStats(
+    workLogs,
+    (row) => row.work_date,
+    (row) => row.total_amount,
+    isCurrentYear,
+  );
+  const monthlyItemStats = getItemStats(workLogItems, workLogDateById, isCurrentMonth).slice(0, 10);
 
   return (
-    <main className="flex w-full flex-1 flex-col gap-6">
+    <main className="flex w-full flex-1 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
-            Napi működés
+            Napi munkalap
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#17130f] lg:text-4xl">
-            Munkalap, bevétel és kiadás rögzítése
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#17130f] lg:text-3xl">
+            Mai munka rögzítése
           </h1>
-          <p className="mt-3 max-w-3xl text-base font-medium leading-8 text-[#44382e]">
-            Ez a rész lesz a napi kertkarbantartási admin alapja. Röviden kell
-            kitölteni, a rendszer pedig számolja a munkadíjat, bevételt és kiadást.
-          </p>
         </div>
         <Link
           href="/app"
-          className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-5 py-3 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
+          className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-4 py-2 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
         >
-          Vissza a központhoz
+          Központ
         </Link>
       </div>
 
-      {params.message ? (
-        <section className="rounded-[22px] border-2 border-emerald-300 bg-emerald-50 px-5 py-4 text-base font-semibold leading-7 text-emerald-950">
-          {params.message}
-        </section>
-      ) : null}
+      <Feedback message={params.message} error={params.error} setupError={setupError} />
 
-      {params.error ? (
-        <section className="rounded-[22px] border-2 border-rose-300 bg-rose-50 px-5 py-4 text-base font-semibold leading-7 text-rose-950">
-          {params.error}
-        </section>
-      ) : null}
-
-      {setupError ? (
-        <section className="rounded-[22px] border-2 border-amber-300 bg-amber-50 px-5 py-4 text-base font-semibold leading-7 text-amber-950">
-          A működési táblák még nem olvashatók a Supabase-ben. Ha ezt látod,
-          valószínűleg a `0005_operations_finance_module.sql` migrációt kell
-          lefuttatni. Hiba: {setupError}
-        </section>
-      ) : null}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Munkalap érték", workLogTotal, `${workLogs.length} friss munkalap`],
-          ["Bevétel", incomeTotal, `${incomes.length} friss bevétel`],
-          ["Kiadás", expenseTotal, `${expenses.length} friss kiadás`],
-          ["Fizetések", payrollTotal, `${payrollRows.length} friss bérsor`],
-        ].map(([label, value, note]) => (
-          <article
-            key={String(label)}
-            className="rounded-[22px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_14px_36px_rgba(26,20,16,0.07)]"
-          >
-            <p className="text-sm font-bold text-[#493b2f]">{label}</p>
-            <p className="mt-3 break-words text-2xl font-bold text-[#17130f]">
-              {formatMoney(Number(value))}
-            </p>
-            <p className="mt-2 text-sm font-medium leading-6 text-[#5f5144]">
-              {note}
-            </p>
-          </article>
-        ))}
+      <section className="rounded-[26px] border-4 border-[#1e5a40] bg-white p-4 shadow-[0_18px_44px_rgba(26,20,16,0.12)] lg:p-5">
+        <WorkLogForm
+          today={today}
+          taskOptions={settlementTaskOptions}
+          unitOptions={settlementUnitOptions}
+          priceOptions={priceOptions}
+          customerOptions={customerOptions}
+        />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        <details className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
-          <summary className="cursor-pointer list-none">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
-              Dolgozók
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
-              Dolgozó felvitele
-            </h2>
-          </summary>
-          <form action={createEmployee} className="mt-5 grid gap-4 md:grid-cols-2">
-            <Field id="employeeName" label="Név" name="name" placeholder="Dolgozó neve" />
-            <Field id="roleTitle" label="Szerep" name="roleTitle" placeholder="Pl. kertész, segéd" />
-            <Field id="employeePhone" label="Telefon" name="phone" placeholder="+36..." />
-            <Field id="employeeDailyRate" label="Napi bér" name="dailyRate" type="number" placeholder="0" />
-            <Field id="employeeHourlyRate" label="Órabér" name="hourlyRate" type="number" placeholder="0" />
-            <Field id="employeeOvertimeRate" label="Túlóra díj" name="overtimeRate" type="number" placeholder="5000" defaultValue={5000} />
-            <div className="md:col-span-2">
-              <TextArea id="employeeNotes" label="Megjegyzés" name="notes" placeholder="Belső megjegyzés" />
-            </div>
-            <div className="md:col-span-2">
-              <button className="rounded-full bg-[#123f2d] px-6 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-                Dolgozó mentése
-              </button>
-            </div>
-          </form>
-        </details>
+      {workbookPriceImportCount ? (
+        <form action={importWorkbookPriceItems}>
+          <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
+            Tételárak bemásolása ({workbookPriceImportCount})
+          </button>
+        </form>
+      ) : null}
 
-        <details className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
-          <summary className="cursor-pointer list-none">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
-              Fizetések
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
-              Bérköltség rögzítése
-            </h2>
-          </summary>
-          <PayrollForm employees={payrollEmployeeOptions} today={today} />
-        </details>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Ma" value={formatMoney(dailyWork.amount)} note={`${dailyWork.count} munkalap`} />
+        <StatCard label="Hónap" value={formatMoney(monthlyWork.amount)} note={`${monthlyWork.count} munkalap`} />
+        <StatCard label="Év" value={formatMoney(yearlyWork.amount)} note={`${yearlyWork.count} munkalap`} />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-3">
-        <details open className="rounded-[26px] border-2 border-[#1e5a40] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
-          <summary className="cursor-pointer list-none">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
-              Napi munkalap
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
-              Elvégzett munka rögzítése
-            </h2>
-          </summary>
-          <form action={createWorkLog} className="mt-5 grid gap-4">
-            <Field id="workDate" label="Dátum" name="workDate" type="date" placeholder="" defaultValue={today} />
-            <Field id="workCustomer" label="Ügyfél" name="customerName" placeholder="Ügyfél neve" />
-            <Field id="workAddress" label="Helyszín" name="siteAddress" placeholder="Cím vagy terület" />
-            <TextArea id="taskSummary" label="Elvégzett feladat" name="taskSummary" placeholder="Pl. fűnyírás, sövényvágás, zöldhulladék" />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="crewCount" label="Fő" name="crewCount" type="number" placeholder="1" defaultValue={1} />
-              <Field id="workHours" label="Óra" name="workHours" type="number" placeholder="0" />
-              <Field id="hourlyRate" label="Óradíj" name="hourlyRate" type="number" placeholder="8000" defaultValue={8000} />
-              <Field id="materialTotal" label="Anyag / egyéb" name="materialTotal" type="number" placeholder="0" />
-            </div>
-            <label className="flex items-center gap-3 rounded-[18px] bg-[#fff8ee] px-4 py-3 text-sm font-bold text-[#2a211a]">
-              <input type="checkbox" name="isFlatRate" className="size-4" />
-              Általányos ügyfélhez tartozik
-            </label>
-            <TextArea id="workNotes" label="Megjegyzés" name="notes" placeholder="Belső megjegyzés" />
-            <button className="rounded-full bg-[#123f2d] px-6 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-              Munkalap mentése
-            </button>
-          </form>
-        </details>
-
-        <details className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
-          <summary className="cursor-pointer list-none">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
-              Bevétel
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
-              Beérkező pénz rögzítése
-            </h2>
-          </summary>
-          <form action={createIncomeEntry} className="mt-5 grid gap-4">
-            <Field id="incomeDate" label="Dátum" name="incomeDate" type="date" placeholder="" defaultValue={today} />
-            <Field id="incomeCustomer" label="Ügyfél" name="customerName" placeholder="Ügyfél neve" />
-            <Field id="incomeAddress" label="Helyszín" name="siteAddress" placeholder="Cím vagy munka" />
-            <Field id="incomeAmount" label="Összeg" name="amount" type="number" placeholder="0" />
-            <SelectField
-              id="incomeStatus"
-              label="Állapot"
-              name="status"
-              options={[
-                { value: "unpaid", label: "Nyitott" },
-                { value: "paid", label: "Fizetve" },
-                { value: "partial", label: "Részben fizetve" },
-                { value: "draft", label: "Piszkozat" },
-              ]}
-            />
-            <SelectField
-              id="incomePayment"
-              label="Fizetési mód"
-              name="paymentMethod"
-              options={[
-                { value: "", label: "Nincs megadva" },
-                { value: "cash", label: "Készpénz" },
-                { value: "transfer", label: "Utalás" },
-                { value: "card", label: "Kártya" },
-                { value: "other", label: "Egyéb" },
-              ]}
-            />
-            <Field id="invoiceNumber" label="Számla" name="invoiceNumber" placeholder="Számlaszám" />
-            <TextArea id="incomeDescription" label="Leírás" name="description" placeholder="Mihez kapcsolódik a bevétel?" />
-            <button className="rounded-full bg-[#123f2d] px-6 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-              Bevétel mentése
-            </button>
-          </form>
-        </details>
-
-        <details className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
-          <summary className="cursor-pointer list-none">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
-              Kiadás
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
-              Költség rögzítése
-            </h2>
-          </summary>
-          <form action={createExpenseEntry} className="mt-5 grid gap-4">
-            <Field id="expenseDate" label="Dátum" name="expenseDate" type="date" placeholder="" defaultValue={today} />
-            <Field id="vendorName" label="Szállító" name="vendorName" placeholder="Pl. Shell, Obi, kertészet" />
-            <Field id="itemName" label="Tétel" name="itemName" placeholder="Pl. gázolaj, növény, eszköz" />
-            <Field id="grossAmount" label="Bruttó összeg" name="grossAmount" type="number" placeholder="0" />
-            <Field id="vatRate" label="ÁFA %" name="vatRate" type="number" placeholder="27" defaultValue={27} />
-            <SelectField
-              id="expenseType"
-              label="Típus"
-              name="expenseType"
-              options={[
-                { value: "operating", label: "Működési költség" },
-                { value: "client", label: "Ügyfélhez kapcsolódó" },
-                { value: "investment", label: "Beruházás" },
-                { value: "other", label: "Egyéb" },
-              ]}
-            />
-            <SelectField
-              id="expensePayment"
-              label="Fizetési mód"
-              name="paymentMethod"
-              options={[
-                { value: "", label: "Nincs megadva" },
-                { value: "cash", label: "Készpénz" },
-                { value: "transfer", label: "Utalás" },
-                { value: "card", label: "Kártya" },
-                { value: "other", label: "Egyéb" },
-              ]}
-            />
-            <Field id="expenseInvoiceNumber" label="Számla" name="invoiceNumber" placeholder="Számlaszám" />
-            <TextArea id="expenseNotes" label="Megjegyzés" name="notes" placeholder="Belső megjegyzés" />
-            <button className="rounded-full bg-[#123f2d] px-6 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-              Kiadás mentése
-            </button>
-          </form>
-        </details>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-3">
+      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <RecentList
           title="Friss munkalapok"
-          empty="Még nincs rögzített munkalap."
-          rows={workLogs.map((row) => ({
+          empty="Még nincs munkalap."
+          rows={workLogs.slice(0, 8).map((row) => ({
             id: row.id,
             title: row.customer_name,
             meta: `${formatDate(row.work_date)} · ${row.status ?? "nincs állapot"}`,
             value: formatMoney(row.total_amount),
             note: row.task_summary,
+            deleteAction: deleteWorkLog,
           }))}
         />
-        <RecentList
-          title="Friss bevételek"
-          empty="Még nincs rögzített bevétel."
-          rows={incomes.map((row) => ({
-            id: row.id,
-            title: row.customer_name,
-            meta: `${formatDate(row.income_date)} · ${row.status ?? "nincs állapot"}`,
-            value: formatMoney(row.amount),
-          }))}
-        />
-        <RecentList
-          title="Friss kiadások"
-          empty="Még nincs rögzített kiadás."
-          rows={expenses.map((row) => ({
-            id: row.id,
-            title: row.vendor_name,
-            meta: `${formatDate(row.expense_date)} · ${row.expense_type ?? "nincs típus"}`,
-            value: formatMoney(row.gross_amount),
-            note: row.item_name,
-          }))}
-        />
-        <RecentList
-          title="Friss fizetések"
-          empty="Még nincs rögzített fizetés."
-          rows={payrollRows.map((row) => ({
-            id: row.id,
-            title: getPayrollEmployeeName(row),
-            meta: `${formatDate(row.payroll_date)} · ${row.normal_days ?? 0} nap · ${row.normal_hours ?? 0} óra · ${row.overtime_hours ?? 0} túlóra`,
-            value: formatMoney(row.total_amount),
-          }))}
-        />
+
+        <section className="rounded-[22px] border-2 border-[#d3c3ad] bg-white p-4 shadow-[0_14px_34px_rgba(26,20,16,0.07)]">
+          <h2 className="text-xl font-bold text-[#17130f]">Havi tételstatisztika</h2>
+          <div className="mt-3 overflow-x-auto">
+            {monthlyItemStats.length ? (
+              <table className="min-w-[520px] w-full border-separate border-spacing-y-2">
+                <thead>
+                  <tr className="text-left text-xs font-bold uppercase tracking-[0.12em] text-[#674b25]">
+                    <th className="px-3 py-2">Tétel</th>
+                    <th className="px-3 py-2">Mennyiség</th>
+                    <th className="px-3 py-2">Érték</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyItemStats.map((item) => (
+                    <tr key={item.key} className="bg-[#fff8ee] text-sm font-semibold text-[#17130f]">
+                      <td className="rounded-l-[14px] px-3 py-3">{item.name}</td>
+                      <td className="px-3 py-3">
+                        {formatNumber(item.quantity)} {item.unit}
+                      </td>
+                      <td className="rounded-r-[14px] px-3 py-3 text-[#1e5a40]">
+                        {formatMoney(item.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="rounded-[16px] bg-[#fff8ee] px-4 py-3 text-sm font-semibold text-[#44382e]">
+                Még nincs havi tételadat.
+              </p>
+            )}
+          </div>
+        </section>
       </section>
     </main>
+  );
+}
+
+function mergeCustomerOptions(
+  databaseCustomers: WorkbookCustomerOption[],
+  workbookCustomers: WorkbookCustomerOption[],
+) {
+  const seen = new Set<string>();
+  const merged: WorkbookCustomerOption[] = [];
+
+  for (const customer of [...databaseCustomers, ...workbookCustomers]) {
+    const key = customer.name.trim().toLocaleLowerCase("hu-HU");
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    merged.push(customer);
+  }
+
+  return merged;
+}
+
+function normalizeKey(value: string) {
+  return value
+    .toLocaleLowerCase("hu-HU")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mergePriceOptions(
+  databaseItems: WorkbookPriceItemOption[],
+  workbookItems: WorkbookPriceItemOption[],
+) {
+  const items = new Map<string, WorkbookPriceItemOption>();
+
+  for (const item of [...workbookItems, ...databaseItems]) {
+    const normalizedName = normalizeKey(item.name);
+    const key = `${normalizedName}__${normalizeKey(item.unit)}`;
+    const current = items.get(key);
+
+    if (!normalizedName || (current && current.unitPrice >= item.unitPrice)) {
+      continue;
+    }
+
+    items.set(key, item);
+  }
+
+  return Array.from(items.values()).sort((a, b) => a.name.localeCompare(b.name, "hu-HU"));
+}
+
+function Feedback({
+  message,
+  error,
+  setupError,
+}: {
+  message?: string;
+  error?: string;
+  setupError?: string;
+}) {
+  return (
+    <>
+      {message ? (
+        <section className="rounded-[18px] border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-950">
+          {message}
+        </section>
+      ) : null}
+
+      {error ? (
+        <section className="rounded-[18px] border-2 border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-950">
+          {error}
+        </section>
+      ) : null}
+
+      {setupError ? (
+        <section className="rounded-[18px] border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
+          Supabase hiba: {setupError}
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  note,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  note: string;
+  tone?: "default" | "positive" | "negative";
+}) {
+  const toneClass =
+    tone === "positive"
+      ? "border-emerald-300 bg-emerald-50"
+      : tone === "negative"
+        ? "border-rose-300 bg-rose-50"
+        : "border-[#d3c3ad] bg-white";
+
+  return (
+    <article className={`rounded-[18px] border-2 p-4 shadow-[0_12px_28px_rgba(26,20,16,0.06)] ${toneClass}`}>
+      <p className="text-sm font-bold text-[#493b2f]">{label}</p>
+      <p className="mt-2 break-words text-2xl font-bold text-[#17130f]">{value}</p>
+      <p className="mt-1 text-sm font-semibold text-[#5f5144]">{note}</p>
+    </article>
   );
 }
 
@@ -550,34 +508,63 @@ function RecentList({
   title,
   empty,
   rows,
+  action,
 }: {
   title: string;
   empty: string;
-  rows: Array<{ id: string; title: string; meta: string; value: string; note?: string }>;
+  action?: React.ReactNode;
+  rows: Array<{
+    id: string;
+    title: string;
+    meta: string;
+    value: string;
+    note?: string;
+    badge?: string;
+    deleteAction?: (formData: FormData) => Promise<void>;
+  }>;
 }) {
   return (
-    <section className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
-      <h2 className="text-2xl font-bold text-[#17130f]">{title}</h2>
-      <div className="mt-4 space-y-3">
+    <section className="rounded-[22px] border-2 border-[#d3c3ad] bg-white p-4 shadow-[0_14px_34px_rgba(26,20,16,0.07)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-bold text-[#17130f]">{title}</h2>
+        {action}
+      </div>
+      <div className="mt-3 space-y-2">
         {rows.length ? (
           rows.map((row) => (
-            <article key={row.id} className="rounded-[18px] bg-[#fff8ee] px-4 py-4">
-              <div className="flex flex-wrap justify-between gap-3">
+            <article key={row.id} className="rounded-[16px] bg-[#fff8ee] px-4 py-3">
+              <div className="flex flex-wrap justify-between gap-2">
                 <p className="font-bold text-[#17130f]">{row.title}</p>
                 <p className="font-bold text-[#1e5a40]">{row.value}</p>
               </div>
-              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-[#674b25]">
-                {row.meta}
-              </p>
-              {row.note ? (
-                <p className="mt-2 text-sm font-medium leading-6 text-[#44382e]">
-                  {row.note}
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#674b25]">
+                  {row.meta}
                 </p>
+                {row.badge ? (
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-900">
+                    {row.badge}
+                  </span>
+                ) : null}
+              </div>
+              {row.note ? (
+                <p className="mt-1 text-sm font-semibold leading-6 text-[#5f5144]">{row.note}</p>
+              ) : null}
+              {row.deleteAction ? (
+                <form action={row.deleteAction} className="mt-2">
+                  <input type="hidden" name="id" value={row.id} />
+                  <ConfirmSubmitButton
+                    message="Biztosan törlöd ezt a sort?"
+                    className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
+                  >
+                    Törlés
+                  </ConfirmSubmitButton>
+                </form>
               ) : null}
             </article>
           ))
         ) : (
-          <p className="rounded-[18px] bg-[#fff8ee] px-4 py-4 text-sm font-semibold leading-7 text-[#44382e]">
+          <p className="rounded-[16px] bg-[#fff8ee] px-4 py-3 text-sm font-semibold text-[#44382e]">
             {empty}
           </p>
         )}

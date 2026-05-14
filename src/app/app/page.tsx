@@ -16,25 +16,25 @@ type PageProps = {
 };
 
 const text = {
-  eyebrow: "KAP k\u00f6zpont",
-  title: "Egyszer\u0171 c\u00e9ges ir\u00e1ny\u00edt\u00f3fel\u00fclet.",
+  eyebrow: "KAP központ",
+  title: "Pénzügyi Admin Platform.",
   subtitle:
-    "H\u00e1rom f\u0151 r\u00e9sz: k\u00f6lts\u00e9gvet\u00e9s, \u00e1raj\u00e1nlat \u00e9s \u00fcgyfelek.",
-  mainModule: "F\u0151 modul",
-  budget: "K\u00f6lts\u00e9gvet\u00e9s",
-  separateModule: "K\u00fcl\u00f6n modul",
-  quote: "\u00c1raj\u00e1nlat",
-  clients: "\u00dcgyfelek",
-  open: "Lenyit\u00e1s",
-  survey: "Felm\u00e9r\u0151 \u0171rlap",
-  quotes: "Aj\u00e1nlatok",
-  priceList: "\u00c1rlista",
-  clientList: "\u00dcgyf\u00e9llista",
-  operations: "Működési dashboard",
-  operationsModule: "Napi működés",
+    "Napi munkalap, bevételek, kiadások, munkavállalói költségek és ügyfélnyilvántartás egy helyen.",
+  mainModule: "Fő modul",
+  budget: "Költségvetés",
+  separateModule: "Külön modul",
+  quote: "Árajánlat",
+  clients: "Ügyfelek",
+  open: "Lenyitás",
+  survey: "Munkalap",
+  quotes: "Ajánlatok",
+  priceList: "Árlista",
+  clientList: "Ügyféllista",
+  operations: "Pénzügyi áttekintés",
+  operationsModule: "Napi munkalap",
   operationsTitle: "Napi, havi és éves pénzügyi állapot.",
   operationsSubtitle:
-    "Ez már a költségvetési Excelből számol: bevétel, kiadás, profit, kintlévőség és havi teljesítmény.",
+    "Ez már a napi munkalapokból és a költségvetési adatokból számol: bevétel, kiadás, profit, kintlévőség és havi teljesítmény.",
   dailyRevenue: "Napi bevételi bontás",
   dailyTasks: "Leggyakoribb napi munkák",
   recentRevenue: "Legutóbbi bevételek",
@@ -94,6 +94,20 @@ export default async function AdminPage({ searchParams }: PageProps) {
         <p className="mt-4 max-w-2xl text-base font-medium leading-8 text-[#44382e]">
           {text.subtitle}
         </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href="/app/mukodes"
+            className="inline-flex rounded-full bg-[#123f2d] px-6 py-3 text-base font-bold text-white shadow-[0_12px_26px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]"
+          >
+            Munkalap megnyitása
+          </Link>
+          <Link
+            href="/app/ugyfelek"
+            className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-6 py-3 text-base font-bold text-[#1f1a15] transition hover:border-[#1e5a40] hover:bg-[#f6efe5]"
+          >
+            Ügyfélnyilvántartás
+          </Link>
+        </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -296,7 +310,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
               href="/app/mukodes"
               className="rounded-[18px] border-2 border-[#1e5a40] bg-[#123f2d] px-4 py-4 text-white transition hover:bg-[#1d4d39]"
             >
-              <p className="text-lg font-bold">Működés megnyitása</p>
+              <p className="text-lg font-bold">Munkalap megnyitása</p>
             </Link>
           </div>
         </section>
@@ -349,7 +363,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
 
           <div className="mt-6 grid gap-3">
             <Link
-              href="/felmero"
+              href="/app/mukodes"
               className="rounded-[18px] border-2 border-[#ded0bd] bg-[#fff8ee] px-4 py-4 transition hover:border-[#1e5a40]"
             >
               <p className="text-lg font-bold text-[#17130f]">{text.survey}</p>
@@ -387,7 +401,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
               className="rounded-[18px] border-2 border-[#ded0bd] bg-[#fff8ee] px-4 py-4 transition hover:border-[#1e5a40]"
             >
               <p className="text-lg font-bold text-[#17130f]">
-                {"\u00dcgyf\u00e9lnyilv\u00e1ntart\u00e1s"}
+                {"Ügyfélnyilvántartás"}
               </p>
             </Link>
           </div>

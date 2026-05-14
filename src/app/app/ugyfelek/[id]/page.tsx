@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ConfirmSubmitButton } from "@/app/app/mukodes/ConfirmSubmitButton";
+import { deleteClientRecord } from "@/app/app/ugyfelek/actions";
 import {
   createQuoteForClient,
   updateClient,
@@ -217,12 +219,15 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
         >
           Vissza az ügyfelekhez
         </Link>
-        <Link
-          href={`/felmero?clientId=${clientDetail.id}`}
-          className="inline-flex rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]"
-        >
-          Új felmérés ehhez az ügyfélhez
-        </Link>
+        <form action={deleteClientRecord}>
+          <input type="hidden" name="clientId" value={clientDetail.id} />
+          <ConfirmSubmitButton
+            message="Biztosan törlöd ezt az ügyfelet?"
+            className="inline-flex rounded-full border-2 border-rose-200 bg-white px-5 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-50"
+          >
+            Ügyfél törlése
+          </ConfirmSubmitButton>
+        </form>
       </div>
 
       <section className="grid gap-5 rounded-[26px] border-2 border-[#cdbda8] bg-[#fffaf3] p-5 shadow-[0_18px_50px_rgba(26,20,16,0.08)] lg:grid-cols-[1.1fr_0.9fr] lg:p-7">

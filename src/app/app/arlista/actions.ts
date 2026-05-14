@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getWorkbookPriceItems } from "@/lib/budget/workbookData";
 import { createClient } from "@/lib/supabase/server";
 
 const allowedStatuses = new Set(["active", "inactive", "archived"]);
@@ -146,4 +147,75 @@ export async function updatePriceItem(formData: FormData) {
   revalidatePath("/app");
   revalidatePath("/app/arlista");
   redirect(`${safeReturnTo}?message=${encodeURIComponent("Árlista tétel frissítve.")}`);
+}
+
+export async function importWorkbookPriceItems() {
+  const workbookItems = getWorkbookPriceItems();
+
+  if (!workbookItems.length) {
+    redirect(`/app/mukodes?error=${encodeURIComponent("Nincs importálható árlista tétel.")}`);
+  }
+
+  const { supabase, companyId } = await getCompanyId();
+  const { data: existingItems, error: existingError } = await supabase
+    .from("price_items")
+    .select("name, unit")
+    .eq("company_id", companyId)
+    .limit(5000);
+
+  if (existingError) {
+    redirect(`/app/mukodes?error=${encodeURIComponent(existingError.message)}`);
+  }
+
+  const normalize = (value: string) =>
+    value
+      .toLocaleLowerCase("hu-HU")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const existingKeys = new Set(
+    (existingItems ?? []).map(
+      (item) => `${normalize(item.name ?? "")}__${normalize(item.unit ?? "")}`,
+    ),
+  );
+  const rowsToInsert = workbookItems
+    .filter((item) => {
+      const key = `${normalize(item.name)}__${normalize(item.unit)}`;
+
+      if (existingKeys.has(key)) return false;
+
+      existingKeys.add(key);
+      return true;
+    })
+    .map((item) => ({
+      company_id: companyId,
+      name: item.name,
+      category: item.category || null,
+      unit: item.unit || "db",
+      unit_price: item.unitPrice,
+      vat_rate: item.vatRate || 27,
+      status: "active",
+      notes: item.notes || null,
+      source: item.source || "Excel",
+    }));
+
+  if (!rowsToInsert.length) {
+    redirect(
+      `/app/mukodes?message=${encodeURIComponent("Minden Excel árlista tétel már szerepel a listában.")}`,
+    );
+  }
+
+  const { error } = await supabase.from("price_items").insert(rowsToInsert);
+
+  if (error) {
+    redirect(`/app/mukodes?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/mukodes");
+  revalidatePath("/app/arlista");
+  redirect(
+    `/app/mukodes?message=${encodeURIComponent(`${rowsToInsert.length} árlista tétel importálva.`)}`,
+  );
 }

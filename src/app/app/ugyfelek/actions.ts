@@ -3,24 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getWorkbookCustomerOptions } from "@/lib/budget/workbookData";
 import { createClient } from "@/lib/supabase/server";
 
 function getString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export async function createClientRecord(formData: FormData) {
-  const name = getString(formData.get("name"));
-  const email = getString(formData.get("email"));
-  const phone = getString(formData.get("phone"));
-  const projectAddress = getString(formData.get("projectAddress"));
-  const billingAddress = getString(formData.get("billingAddress"));
-  const notes = getString(formData.get("notes"));
-
-  if (!name) {
-    redirect(`/app/ugyfelek?error=${encodeURIComponent("Az ügyfél neve kötelező.")}`);
-  }
-
+async function getCompanyContext() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -42,10 +32,40 @@ export async function createClientRecord(formData: FormData) {
     );
   }
 
+  return { supabase, companyId: profile.company_id };
+}
+
+function normalizeName(value: string) {
+  return value.toLocaleLowerCase("hu-HU").trim();
+}
+
+function isSampleCustomerName(value: string) {
+  const normalized = normalizeName(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return ["pelda", "teszt", "test", "minta"].some((word) =>
+    normalized.includes(word),
+  );
+}
+
+export async function createClientRecord(formData: FormData) {
+  const name = getString(formData.get("name"));
+  const email = getString(formData.get("email"));
+  const phone = getString(formData.get("phone"));
+  const projectAddress = getString(formData.get("projectAddress"));
+  const billingAddress = getString(formData.get("billingAddress"));
+  const notes = getString(formData.get("notes"));
+
+  if (!name) {
+    redirect(`/app/ugyfelek?error=${encodeURIComponent("Az ügyfél neve kötelező.")}`);
+  }
+
+  const { supabase, companyId } = await getCompanyContext();
   const { data: client, error } = await supabase
     .from("clients")
     .insert({
-      company_id: profile.company_id,
+      company_id: companyId,
       name,
       email: email || null,
       phone: phone || null,
@@ -67,4 +87,80 @@ export async function createClientRecord(formData: FormData) {
   redirect(
     `/app/ugyfelek/${client.id}?message=${encodeURIComponent("Új ügyfél elmentve.")}`,
   );
+}
+
+export async function importWorkbookClients() {
+  const workbookCustomers = getWorkbookCustomerOptions();
+
+  if (!workbookCustomers.length) {
+    redirect(`/app/ugyfelek?error=${encodeURIComponent("Nincs importálható Excel ügyfél.")}`);
+  }
+
+  const { supabase, companyId } = await getCompanyContext();
+  const { data: existingClients, error: existingError } = await supabase
+    .from("clients")
+    .select("name")
+    .eq("company_id", companyId);
+
+  if (existingError) {
+    redirect(`/app/ugyfelek?error=${encodeURIComponent(existingError.message)}`);
+  }
+
+  const existingNames = new Set(
+    (existingClients ?? []).map((client) => normalizeName(client.name ?? "")),
+  );
+  const rowsToInsert = workbookCustomers
+    .filter(
+      (customer) =>
+        !isSampleCustomerName(customer.name) &&
+        !existingNames.has(normalizeName(customer.name)),
+    )
+    .map((customer) => ({
+      company_id: companyId,
+      name: customer.name,
+      email: customer.email || null,
+      phone: customer.phone || null,
+      project_address: customer.address || null,
+      billing_address: customer.address || null,
+      notes: customer.notes || null,
+    }));
+
+  if (!rowsToInsert.length) {
+    redirect(`/app/ugyfelek?message=${encodeURIComponent("Minden Excel ügyfél már szerepel a listában.")}`);
+  }
+
+  const { error } = await supabase.from("clients").insert(rowsToInsert);
+
+  if (error) {
+    redirect(`/app/ugyfelek?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/ugyfelek");
+  redirect(
+    `/app/ugyfelek?message=${encodeURIComponent(`${rowsToInsert.length} Excel ügyfél importálva.`)}`,
+  );
+}
+
+export async function deleteClientRecord(formData: FormData) {
+  const clientId = getString(formData.get("clientId"));
+
+  if (!clientId) {
+    redirect(`/app/ugyfelek?error=${encodeURIComponent("Hiányzó ügyfél azonosító.")}`);
+  }
+
+  const { supabase, companyId } = await getCompanyContext();
+  const { error } = await supabase
+    .from("clients")
+    .delete()
+    .eq("id", clientId)
+    .eq("company_id", companyId);
+
+  if (error) {
+    redirect(`/app/ugyfelek?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/ugyfelek");
+  redirect(`/app/ugyfelek?message=${encodeURIComponent("Ügyfél törölve.")}#ugyfel-lista`);
 }
