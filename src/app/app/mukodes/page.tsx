@@ -176,6 +176,34 @@ function getItemStats(
 export default async function OperationsPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const supabase = await createClient();
+  const { data: authData } = await withTimeout(
+    supabase.auth.getUser(),
+    { data: { user: null }, error: null } as unknown as Awaited<
+      ReturnType<typeof supabase.auth.getUser>
+    >,
+    QUERY_TIMEOUT_MS,
+  );
+  const profileQuery = authData.user
+    ? supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", authData.user.id)
+        .maybeSingle()
+    : null;
+  const { data: profile } = profileQuery
+    ? await withTimeout(
+        profileQuery,
+        {
+          data: null,
+          error: null,
+          count: null,
+          status: 200,
+          statusText: "OK",
+        } as Awaited<typeof profileQuery>,
+        QUERY_TIMEOUT_MS,
+      )
+    : { data: null };
+  const isStaff = profile?.role === "staff";
   const today = getLocalDateKey();
   const currentMonth = today.slice(0, 7);
   const currentYear = today.slice(0, 4);
@@ -187,32 +215,7 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   const workbookCustomers = getWorkbookCustomerOptions();
   const workbookPriceItems = getWorkbookPriceItems();
 
-  const [
-    workLogsResult,
-    workLogItemsResult,
-    clientsResult,
-    priceItemsResult,
-  ] = await Promise.all([
-    withTimeout(
-      supabase
-        .from("work_logs")
-        .select(
-          "id, work_date, customer_name, task_summary, total_amount, labor_total, material_total, work_hours, status",
-        )
-        .order("work_date", { ascending: false })
-        .limit(WORK_LOG_LIMIT),
-      createQueryFallbackSuccess([]),
-      QUERY_TIMEOUT_MS,
-    ),
-    withTimeout(
-      supabase
-        .from("work_log_items")
-        .select("id, work_log_id, name, quantity, unit, total_amount")
-        .order("created_at", { ascending: false })
-        .limit(WORK_LOG_ITEM_LIMIT),
-      createQueryFallbackSuccess([]),
-      QUERY_TIMEOUT_MS,
-    ),
+  const [clientsResult, priceItemsResult] = await Promise.all([
     withTimeout(
       supabase
         .from("clients")
@@ -233,6 +236,30 @@ export default async function OperationsPage({ searchParams }: PageProps) {
       QUERY_TIMEOUT_MS,
     ),
   ]);
+  const [workLogsResult, workLogItemsResult] = isStaff
+    ? [createQueryFallbackSuccess([]), createQueryFallbackSuccess([])]
+    : await Promise.all([
+        withTimeout(
+          supabase
+            .from("work_logs")
+            .select(
+              "id, work_date, customer_name, task_summary, total_amount, labor_total, material_total, work_hours, status",
+            )
+            .order("work_date", { ascending: false })
+            .limit(WORK_LOG_LIMIT),
+          createQueryFallbackSuccess([]),
+          QUERY_TIMEOUT_MS,
+        ),
+        withTimeout(
+          supabase
+            .from("work_log_items")
+            .select("id, work_log_id, name, quantity, unit, total_amount")
+            .order("created_at", { ascending: false })
+            .limit(WORK_LOG_ITEM_LIMIT),
+          createQueryFallbackSuccess([]),
+          QUERY_TIMEOUT_MS,
+        ),
+      ]);
 
   const workLogs = (workLogsResult.data ?? []) as WorkLogRow[];
   const workLogItems = (workLogItemsResult.data ?? []) as WorkLogItemRow[];
@@ -308,12 +335,14 @@ export default async function OperationsPage({ searchParams }: PageProps) {
             Mai munka rögzítése
           </h1>
         </div>
-        <Link
-          href="/app"
-          className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-4 py-2 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
-        >
-          Központ
-        </Link>
+        {!isStaff ? (
+          <Link
+            href="/app"
+            className="inline-flex rounded-full border-2 border-[#bfa988] bg-white px-4 py-2 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
+          >
+            Központ
+          </Link>
+        ) : null}
       </div>
 
       <Feedback message={params.message} error={params.error} setupError={setupError} />
@@ -328,7 +357,7 @@ export default async function OperationsPage({ searchParams }: PageProps) {
         />
       </section>
 
-      {workbookPriceImportCount ? (
+      {!isStaff && workbookPriceImportCount ? (
         <form action={importWorkbookPriceItems}>
           <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
             Tételárak bemásolása ({workbookPriceImportCount})
@@ -336,60 +365,65 @@ export default async function OperationsPage({ searchParams }: PageProps) {
         </form>
       ) : null}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Ma" value={formatMoney(dailyWork.amount)} note={`${dailyWork.count} munkalap`} />
-        <StatCard label="Hónap" value={formatMoney(monthlyWork.amount)} note={`${monthlyWork.count} munkalap`} />
-        <StatCard label="Év" value={formatMoney(yearlyWork.amount)} note={`${yearlyWork.count} munkalap`} />
-      </section>
+      {!isStaff ? (
+        <>
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Ma" value={formatMoney(dailyWork.amount)} note={`${dailyWork.count} munkalap`} />
+            <StatCard label="Hónap" value={formatMoney(monthlyWork.amount)} note={`${monthlyWork.count} munkalap`} />
+            <StatCard label="Év" value={formatMoney(yearlyWork.amount)} note={`${yearlyWork.count} munkalap`} />
+          </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <RecentList
-          title="Friss munkalapok"
-          empty="Még nincs munkalap."
-          rows={workLogs.slice(0, 8).map((row) => ({
-            id: row.id,
-            title: row.customer_name,
-            meta: `${formatDate(row.work_date)} · ${row.status ?? "nincs állapot"}`,
-            value: formatMoney(row.total_amount),
-            note: row.task_summary,
-            deleteAction: deleteWorkLog,
-          }))}
-        />
+          <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <RecentList
+              title="Friss munkalapok"
+              empty="Még nincs munkalap."
+              rows={workLogs.slice(0, 8).map((row) => ({
+                id: row.id,
+                title: row.customer_name,
+                meta: `${formatDate(row.work_date)} · ${row.status ?? "nincs állapot"}`,
+                value: formatMoney(row.total_amount),
+                note: row.task_summary,
+                deleteAction: deleteWorkLog,
+              }))}
+            />
 
-        <section className="rounded-[22px] border-2 border-[#d3c3ad] bg-white p-4 shadow-[0_14px_34px_rgba(26,20,16,0.07)]">
-          <h2 className="text-xl font-bold text-[#17130f]">Havi tételstatisztika</h2>
-          <div className="mt-3 overflow-x-auto">
-            {monthlyItemStats.length ? (
-              <table className="min-w-[520px] w-full border-separate border-spacing-y-2">
-                <thead>
-                  <tr className="text-left text-xs font-bold uppercase tracking-[0.12em] text-[#674b25]">
-                    <th className="px-3 py-2">Tétel</th>
-                    <th className="px-3 py-2">Mennyiség</th>
-                    <th className="px-3 py-2">Érték</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyItemStats.map((item) => (
-                    <tr key={item.key} className="bg-[#fff8ee] text-sm font-semibold text-[#17130f]">
-                      <td className="rounded-l-[14px] px-3 py-3">{item.name}</td>
-                      <td className="px-3 py-3">
-                        {formatNumber(item.quantity)} {item.unit}
-                      </td>
-                      <td className="rounded-r-[14px] px-3 py-3 text-[#1e5a40]">
-                        {formatMoney(item.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="rounded-[16px] bg-[#fff8ee] px-4 py-3 text-sm font-semibold text-[#44382e]">
-                Még nincs havi tételadat.
-              </p>
-            )}
-          </div>
-        </section>
-      </section>
+            <section className="rounded-[22px] border-2 border-[#d3c3ad] bg-white p-4 shadow-[0_14px_34px_rgba(26,20,16,0.07)]">
+              <h2 className="text-xl font-bold text-[#17130f]">Havi tételstatisztika</h2>
+              <div className="mt-3 overflow-x-auto">
+                {monthlyItemStats.length ? (
+                  <table className="min-w-[520px] w-full border-separate border-spacing-y-2">
+                    <thead>
+                      <tr className="text-left text-xs font-bold uppercase tracking-[0.12em] text-[#674b25]">
+                        <th className="px-3 py-2">Tétel</th>
+                        <th className="px-3 py-2">Mennyiség</th>
+                        <th className="px-3 py-2">Érték</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyItemStats.map((item) => (
+                        <tr key={item.key} className="bg-[#fff8ee] text-sm font-semibold text-[#17130f]">
+                          <td className="rounded-l-[14px] px-3 py-3">{item.name}</td>
+                          <td className="px-3 py-3">
+                            {formatNumber(item.quantity)} {item.unit}
+                          </td>
+                          <td className="rounded-r-[14px] px-3 py-3 text-[#1e5a40]">
+                            {formatMoney(item.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="rounded-[16px] bg-[#fff8ee] px-4 py-3 text-sm font-semibold text-[#44382e]">
+                    Még nincs havi tételadat.
+                  </p>
+                )}
+              </div>
+            </section>
+          </section>
+        </>
+      ) : null}
+
     </main>
   );
 }

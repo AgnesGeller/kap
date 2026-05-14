@@ -356,8 +356,33 @@ export async function createWorkLog(formData: FormData) {
     }
   }
 
+  if (workLog?.id && totalAmount > 0) {
+    const { error: incomeError } = await supabase.from("income_entries").insert({
+      company_id: companyId,
+      client_id: savedClientId,
+      work_log_id: workLog.id,
+      income_date: workDate || new Date().toISOString().slice(0, 10),
+      customer_name: customerName,
+      site_address: siteAddress || null,
+      description: taskSummary,
+      calculated_amount: totalAmount,
+      amount: totalAmount,
+      status: "unpaid",
+      payment_method: null,
+      invoice_number: null,
+      is_flat_rate: isFlatRate,
+      is_vat_invoice: false,
+      notes: "Automatikusan munkalapból létrehozva.",
+    });
+
+    if (incomeError) {
+      redirect(`/app/mukodes?error=${encodeURIComponent(incomeError.message)}`);
+    }
+  }
+
   revalidatePath("/app");
   revalidatePath("/app/mukodes");
+  revalidatePath("/app/bevetelek");
   redirect(`/app/mukodes?message=${encodeURIComponent("Munkalap elmentve.")}`);
 }
 

@@ -72,17 +72,20 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
     );
   }
 
+  const profileQuery = supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", user.id)
+    .maybeSingle();
   const { data: profile } = await withTimeout(
-    supabase
-      .from("profiles")
-      .select("role, full_name")
-      .eq("id", user.id)
-      .maybeSingle(),
-    { data: null, error: null } as unknown as Awaited<
-      ReturnType<
-        ReturnType<typeof supabase.from<"profiles">>["select"]
-      >
-    >,
+    profileQuery,
+    {
+      data: null,
+      error: null,
+      count: null,
+      status: 200,
+      statusText: "OK",
+    } as Awaited<typeof profileQuery>,
     3500,
   );
   const isStaff = profile?.role === "staff";
