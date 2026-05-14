@@ -7,6 +7,8 @@ import {
   getOperationalDashboard,
   getWorkbookOverviewCards,
 } from "@/lib/budget/analytics";
+import { withTimeout } from "@/lib/async";
+import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -41,6 +43,39 @@ const text = {
   monthCompare: "Havi összehasonlítás",
 };
 
+const emptyOverviewCards = [
+  {
+    label: "Éves bevétel",
+    value: "0 Ft",
+    note: "A teszt fiók nem mutat éles pénzügyi adatot",
+  },
+  {
+    label: "Éves kiadás",
+    value: "0 Ft",
+    note: "Üres teszt cég",
+  },
+  {
+    label: "Eredmény",
+    value: "0 Ft",
+    note: "Bevétel mínusz összes kiadás",
+  },
+  {
+    label: "Kintlévőség",
+    value: "0 Ft",
+    note: "Teszt adat nélkül",
+  },
+  {
+    label: "Munkák száma",
+    value: "0",
+    note: "A teszt fiókban felvitt munkák száma",
+  },
+  {
+    label: "Aktív ügyfelek",
+    value: "0",
+    note: "Üres teszt ügyféllista",
+  },
+];
+
 function formatShortDate(value: unknown) {
   if (typeof value !== "string") return "";
 
@@ -55,18 +90,28 @@ function formatShortDate(value: unknown) {
 
 export default async function AdminPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
-  const overviewCards = getWorkbookOverviewCards();
-  const dashboard = getOperationalDashboard();
+  const supabase = await createClient();
+  const { data: authData } = await withTimeout(
+    supabase.auth.getUser(),
+    { data: { user: null }, error: null } as unknown as Awaited<
+      ReturnType<typeof supabase.auth.getUser>
+    >,
+    3500,
+  );
+  const isTestAccount =
+    authData.user?.email?.toLocaleLowerCase("hu-HU") === "teszt@teszt.com";
+  const overviewCards = isTestAccount ? emptyOverviewCards : getWorkbookOverviewCards();
+  const dashboard = isTestAccount ? null : getOperationalDashboard();
   const profitTrend = [
     {
       label: "Legjobb hónap",
-      month: dashboard.bestMonth?.month ?? "Nincs adat",
-      value: dashboard.bestMonth ? formatMoney(dashboard.bestMonth.profit) : "-",
+      month: dashboard?.bestMonth?.month ?? "Nincs adat",
+      value: dashboard?.bestMonth ? formatMoney(dashboard.bestMonth.profit) : "-",
     },
     {
       label: "Leggyengébb hónap",
-      month: dashboard.weakestMonth?.month ?? "Nincs adat",
-      value: dashboard.weakestMonth ? formatMoney(dashboard.weakestMonth.profit) : "-",
+      month: dashboard?.weakestMonth?.month ?? "Nincs adat",
+      value: dashboard?.weakestMonth ? formatMoney(dashboard.weakestMonth.profit) : "-",
     },
   ];
 
@@ -129,6 +174,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
         ))}
       </section>
 
+      {dashboard ? (
       <section className="rounded-[30px] border-2 border-[#1e5a40] bg-[#10201a] p-5 text-white shadow-[0_18px_50px_rgba(10,20,17,0.22)] lg:p-7">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -292,6 +338,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </div>
         </div>
       </section>
+      ) : null}
 
       <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
         <section className="rounded-[28px] border-2 border-[#1e5a40] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">

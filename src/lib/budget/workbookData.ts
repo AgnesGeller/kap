@@ -238,6 +238,66 @@ function parseHeaderItem(value: string) {
   };
 }
 
+const manualWorkLogPrices: Array<{
+  aliases: string[];
+  name: string;
+  unit: string;
+  unitPrice: number;
+  notes?: string;
+}> = [
+  { aliases: ["munkadij fo", "munkadij fő"], name: "Munkadíj", unit: "fő", unitPrice: 8000 },
+  { aliases: ["munkadij ora", "munkadij óra"], name: "Munkadíj", unit: "óra", unitPrice: 8000 },
+  { aliases: ["zoldhulladek omlesztett", "zöldhulladék ömlesztett"], name: "Zöldhulladék ömlesztett", unit: "m3", unitPrice: 9000 },
+  { aliases: ["zoldhulladek zsakos", "zöldhulladék zsákos"], name: "Zöldhulladék zsákos", unit: "zsák", unitPrice: 1300 },
+  {
+    aliases: ["novenyvedelem", "növényvédelem"],
+    name: "Növényvédelem",
+    unit: "alkalom",
+    unitPrice: 25000,
+    notes: "Sávos ár: 1 alkalom 25 000 Ft, 2-3 alkalom 17 000 Ft, 4+ alkalom 12 000 Ft.",
+  },
+  {
+    aliases: ["lemoso permetezes", "lemosó permetezés"],
+    name: "Lemosó permetezés",
+    unit: "alkalom",
+    unitPrice: 20000,
+    notes: "Sávos ár: 1 alkalom 20 000 Ft, 2-3 alkalom 12 000 Ft, 4+ alkalom 7 000 Ft.",
+  },
+  { aliases: ["gyomirtas 1l", "gyomirtó 1l", "gyomirtas 1 l", "gyomirtó 1 l"], name: "Gyomirtó", unit: "1L", unitPrice: 1400 },
+  {
+    aliases: ["talajpermet"],
+    name: "Talajpermet",
+    unit: "alkalom",
+    unitPrice: 25000,
+    notes: "Sávos ár: 1 alkalom 25 000 Ft, 2-3 alkalom 17 000 Ft, 4+ alkalom 12 000 Ft.",
+  },
+  { aliases: ["fumag adagolo", "fűmag adagoló", "fumag", "fűmag"], name: "Fűmag", unit: "adagoló", unitPrice: 6000 },
+  { aliases: ["mutragya altalanos", "műtrágya általános"], name: "Műtrágya általános", unit: "adag", unitPrice: 6000 },
+  { aliases: ["mutragya mohairto", "műtrágya mohairtó", "mutragya moha irto", "műtrágya moha irtó"], name: "Műtrágya mohairtó", unit: "adag", unitPrice: 12000 },
+  { aliases: ["mutragya gyomirto", "műtrágya gyomirtó"], name: "Műtrágya gyomirtó", unit: "adag", unitPrice: 18000 },
+  { aliases: ["marhatragya 20l", "marhatrágya 20l", "marhatragya 20l zsakos", "marhatrágya 20l zsákos"], name: "Marhatrágya 20L", unit: "zsák", unitPrice: 1500 },
+  { aliases: ["marhatragya 50l", "marhatrágya 50l", "marhatragya 50l zsak", "marhatrágya 50l zsák"], name: "Marhatrágya 50L", unit: "zsák", unitPrice: 3000 },
+  { aliases: ["termofold 20l", "termőföld 20l", "termofold 20l zsakos", "termőföld 20l zsákos"], name: "Termőföld 20L", unit: "zsák", unitPrice: 1500 },
+  { aliases: ["termofold omlesztett 1m3 fuvar", "termőföld ömlesztett 1m3 fuvar"], name: "Termőföld ömlesztett 1m3", unit: "fuvar", unitPrice: 30000 },
+  { aliases: ["termofold omlesztett 2m3 fuvar", "termőföld ömlesztett 2m3 fuvar"], name: "Termőföld ömlesztett 2m3", unit: "fuvar", unitPrice: 50000 },
+  { aliases: ["termofold omlesztett 3m3 fuvar", "termőföld ömlesztett 3m3 fuvar"], name: "Termőföld ömlesztett 3m3", unit: "fuvar", unitPrice: 75000 },
+];
+
+function getManualWorkLogPrice(name: string, unit = "") {
+  const normalizedName = normalizeWorkbookKey(name);
+  const normalizedUnit = normalizeWorkbookKey(unit);
+  const candidates = new Set([
+    normalizedName,
+    `${normalizedName} ${normalizedUnit}`.trim(),
+  ]);
+
+  return (
+    manualWorkLogPrices.find((price) =>
+      price.aliases.some((alias) => candidates.has(normalizeWorkbookKey(alias))),
+    ) ?? null
+  );
+}
+
 export function getWorkbookPriceItems() {
   const items = new Map<string, WorkbookPriceItemOption>();
   const calculatorSheet = getWorkbookSheet("Elszám kalkulátor");
@@ -250,36 +310,59 @@ export function getWorkbookPriceItems() {
     const unitPrice = getNumberValue(row, ["Ár", "Ar"]);
     const unit = getTextValue(row, ["Egység", "Egyseg"]) || "db";
     const notes = getTextValue(row, ["Megjegyzés", "Megjegyzes"]);
+    const manualPrice = getManualWorkLogPrice(name, unit);
+    const itemName = manualPrice?.name ?? name;
+    const itemUnit = manualPrice?.unit ?? unit;
 
     if (!name) return;
 
-    const key = `${normalizeWorkbookKey(name)}__${normalizeWorkbookKey(unit)}`;
+    const key = `${normalizeWorkbookKey(itemName)}__${normalizeWorkbookKey(itemUnit)}`;
     items.set(key, {
       id: `excel-price-calculator-${index + 1}`,
-      name,
+      name: itemName,
       category: "Elszámolás",
-      unit,
-      unitPrice,
+      unit: itemUnit,
+      unitPrice: manualPrice?.unitPrice ?? unitPrice,
       vatRate: 27,
-      notes,
+      notes: manualPrice?.notes ?? notes,
       source: cleanWorkbookText(calculatorSheet.title),
+    });
+  });
+
+  manualWorkLogPrices.forEach((price, index) => {
+    const key = `${normalizeWorkbookKey(price.name)}__${normalizeWorkbookKey(price.unit)}`;
+
+    if (items.has(key)) return;
+
+    items.set(key, {
+      id: `manual-work-log-price-${index + 1}`,
+      name: price.name,
+      category: "Munkalap tétel",
+      unit: price.unit,
+      unitPrice: price.unitPrice,
+      vatRate: 27,
+      notes: price.notes ?? "",
+      source: "Elszámolás kalkulátor",
     });
   });
 
   getSettlementDetailItemHeaders().forEach((header, index) => {
     const parsed = parseHeaderItem(header);
-    const key = `${normalizeWorkbookKey(parsed.name)}__${normalizeWorkbookKey(parsed.unit)}`;
+    const manualPrice = getManualWorkLogPrice(parsed.name, parsed.unit);
+    const itemName = manualPrice?.name ?? parsed.name;
+    const itemUnit = manualPrice?.unit ?? parsed.unit;
+    const key = `${normalizeWorkbookKey(itemName)}__${normalizeWorkbookKey(itemUnit)}`;
 
     if (items.has(key)) return;
 
     items.set(key, {
       id: `excel-price-detail-${index + 1}`,
-      name: parsed.name,
+      name: itemName,
       category: "Munkalap tétel",
-      unit: parsed.unit,
-      unitPrice: 0,
+      unit: itemUnit,
+      unitPrice: manualPrice?.unitPrice ?? 0,
       vatRate: 27,
-      notes: "",
+      notes: manualPrice?.notes ?? "",
       source: "Elszám részletező",
     });
   });

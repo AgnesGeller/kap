@@ -204,6 +204,8 @@ export default async function OperationsPage({ searchParams }: PageProps) {
       )
     : { data: null };
   const isStaff = profile?.role === "staff";
+  const isTestAccount =
+    authData.user?.email?.toLocaleLowerCase("hu-HU") === "teszt@teszt.com";
   const today = getLocalDateKey();
   const currentMonth = today.slice(0, 7);
   const currentYear = today.slice(0, 4);
@@ -212,8 +214,8 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   const isCurrentYear = (date: string) => date.slice(0, 4) === currentYear;
   const settlementTaskOptions = getSettlementDetailItemHeaders();
   const settlementUnitOptions = getSettlementDetailUnitOptions();
-  const workbookCustomers = getWorkbookCustomerOptions();
-  const workbookPriceItems = getWorkbookPriceItems();
+  const workbookCustomers = isTestAccount ? [] : getWorkbookCustomerOptions();
+  const workbookPriceItems = isTestAccount ? [] : getWorkbookPriceItems();
 
   const [clientsResult, priceItemsResult] = await Promise.all([
     withTimeout(

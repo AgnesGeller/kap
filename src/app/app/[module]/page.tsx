@@ -373,6 +373,15 @@ async function DailyEntryModulePage({
   page: number;
 }) {
   const supabase = await createClient();
+  const { data: authData } = await withTimeout(
+    supabase.auth.getUser(),
+    { data: { user: null }, error: null } as unknown as Awaited<
+      ReturnType<typeof supabase.auth.getUser>
+    >,
+    3500,
+  );
+  const isTestAccount =
+    authData.user?.email?.toLocaleLowerCase("hu-HU") === "teszt@teszt.com";
   const today = getLocalDateKey();
   const searchValue = getSupabaseSearchValue(query);
   const searchPattern = getIlikePattern(query);
@@ -432,9 +441,9 @@ async function DailyEntryModulePage({
   const databaseExpenses = (expenseResult.data ?? []) as ExpenseEntryRow[];
   const employees = (employeeResult.data ?? []) as EmployeeRow[];
   const databasePayrollRows = (payrollResult.data ?? []) as unknown as PayrollRow[];
-  const workbookIncomeRows = getWorkbookIncomeEntries();
-  const workbookExpenseRows = getWorkbookExpenseEntries();
-  const workbookPayrollRows = getWorkbookPayrollEntries();
+  const workbookIncomeRows = isTestAccount ? [] : getWorkbookIncomeEntries();
+  const workbookExpenseRows = isTestAccount ? [] : getWorkbookExpenseEntries();
+  const workbookPayrollRows = isTestAccount ? [] : getWorkbookPayrollEntries();
   const databaseIncomeKeys = new Set(
     databaseIncomes.map((income) => getIncomeDisplayKey(income)),
   );

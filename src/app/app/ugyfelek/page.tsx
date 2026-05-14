@@ -122,10 +122,21 @@ export default async function ClientsPage({ searchParams }: PageProps) {
   const searchQuery = (params.q ?? "").trim();
   const normalizedSearchQuery = searchQuery.toLocaleLowerCase("hu-HU");
   const currentPage = getPage(params.page);
-  const workbookCustomers = getWorkbookCustomerOptions().filter(
-    (customer) => !isSampleCustomerName(customer.name),
-  );
   const supabase = await createClient();
+  const { data: authData } = await withTimeout(
+    supabase.auth.getUser(),
+    { data: { user: null }, error: null } as unknown as Awaited<
+      ReturnType<typeof supabase.auth.getUser>
+    >,
+    3500,
+  );
+  const isTestAccount =
+    authData.user?.email?.toLocaleLowerCase("hu-HU") === "teszt@teszt.com";
+  const workbookCustomers = isTestAccount
+    ? []
+    : getWorkbookCustomerOptions().filter(
+        (customer) => !isSampleCustomerName(customer.name),
+      );
 
   const { data: clients, error } = await withTimeout(
     supabase
