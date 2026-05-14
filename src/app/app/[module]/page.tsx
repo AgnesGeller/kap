@@ -1279,6 +1279,17 @@ export default async function BudgetModulePage({ params, searchParams }: PagePro
     notFound();
   }
 
+  const supabase = await createClient();
+  const { data: authData } = await withTimeout(
+    supabase.auth.getUser(),
+    { data: { user: null }, error: null } as unknown as Awaited<
+      ReturnType<typeof supabase.auth.getUser>
+    >,
+    3500,
+  );
+  const isTestAccount =
+    authData.user?.email?.toLocaleLowerCase("hu-HU") === "teszt@teszt.com";
+
   if (dailyModuleKeys.has(currentModule.key)) {
     return (
       <DailyEntryModulePage
@@ -1287,6 +1298,31 @@ export default async function BudgetModulePage({ params, searchParams }: PagePro
         query={query}
         title={currentModule.title}
       />
+    );
+  }
+
+  if (isTestAccount) {
+    return (
+      <main className="flex w-full flex-1 flex-col gap-6">
+        <Link
+          href="/app"
+          className="w-fit rounded-full border-2 border-[#bfa988] bg-white px-5 py-3 text-sm font-bold text-[#1f1a15] transition hover:bg-[#f6efe5]"
+        >
+          Vissza a központhoz
+        </Link>
+
+        <section className="rounded-[30px] border-2 border-[#cdbda8] bg-[#fffaf3] p-6 shadow-[0_18px_50px_rgba(26,20,16,0.08)] lg:p-8">
+          <p className="inline-flex rounded-full border border-emerald-300 bg-emerald-100 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#123f2d]">
+            Teszt fiók
+          </p>
+          <h1 className="mt-5 text-3xl font-bold tracking-tight text-[#17130f] lg:text-5xl">
+            Ez a modul teszt módban üres.
+          </h1>
+          <p className="mt-4 max-w-3xl text-base font-medium leading-8 text-[#44382e]">
+            A teszt belépés nem mutat éles költségvetési, Excelből importált vagy pénzügyi adatokat.
+          </p>
+        </section>
+      </main>
     );
   }
 

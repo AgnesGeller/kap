@@ -362,35 +362,37 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </div>
         </section>
 
-        <details
-          open
-          name="kap-main-modules"
-          className="group rounded-[28px] border-2 border-[#1e5a40] bg-[#0d241b] p-5 text-white shadow-[0_18px_50px_rgba(10,20,17,0.22)]"
-        >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100">
-                {text.mainModule}
-              </p>
-              <h2 className="mt-2 text-3xl font-bold">{text.budget}</h2>
-            </div>
-            <span className="rounded-full bg-emerald-300 px-4 py-2 text-sm font-bold text-[#0b1a16]">
-              {text.open}
-            </span>
-          </summary>
+        {!isTestAccount ? (
+          <details
+            open
+            name="kap-main-modules"
+            className="group rounded-[28px] border-2 border-[#1e5a40] bg-[#0d241b] p-5 text-white shadow-[0_18px_50px_rgba(10,20,17,0.22)]"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100">
+                  {text.mainModule}
+                </p>
+                <h2 className="mt-2 text-3xl font-bold">{text.budget}</h2>
+              </div>
+              <span className="rounded-full bg-emerald-300 px-4 py-2 text-sm font-bold text-[#0b1a16]">
+                {text.open}
+              </span>
+            </summary>
 
-          <div className="mt-6 grid gap-3">
-            {budgetModules.map((module) => (
-              <Link
-                key={module.href}
-                href={module.href}
-                className="rounded-[18px] border border-white/10 bg-white/8 px-4 py-4 transition hover:bg-white/14"
-              >
-                <p className="text-lg font-bold">{module.title}</p>
-              </Link>
-            ))}
-          </div>
-        </details>
+            <div className="mt-6 grid gap-3">
+              {budgetModules.map((module) => (
+                <Link
+                  key={module.href}
+                  href={module.href}
+                  className="rounded-[18px] border border-white/10 bg-white/8 px-4 py-4 transition hover:bg-white/14"
+                >
+                  <p className="text-lg font-bold">{module.title}</p>
+                </Link>
+              ))}
+            </div>
+          </details>
+        ) : null}
 
         <details
           name="kap-main-modules"
