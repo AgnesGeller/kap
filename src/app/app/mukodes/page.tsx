@@ -79,9 +79,9 @@ type ItemStat = {
 };
 
 const QUERY_TIMEOUT_MS = 3500;
-const WORK_LOG_LIMIT = 120;
-const WORK_LOG_ITEM_LIMIT = 300;
-const CLIENT_LIMIT = 300;
+const WORK_LOG_LIMIT = 60;
+const WORK_LOG_ITEM_LIMIT = 160;
+const CLIENT_LIMIT = 180;
 
 function formatMoney(value: number | null | undefined) {
   return new Intl.NumberFormat("hu-HU", {
@@ -235,7 +235,7 @@ export default async function OperationsPage({ searchParams }: PageProps) {
             .select("id, name, category, unit, unit_price, vat_rate, notes, source")
             .eq("status", "active")
             .order("name", { ascending: true })
-            .limit(1500),
+            .limit(600),
           createQueryFallbackSuccess([]),
           QUERY_TIMEOUT_MS,
         ),
@@ -362,11 +362,16 @@ export default async function OperationsPage({ searchParams }: PageProps) {
       </section>
 
       {!isStaff && workbookPriceImportCount ? (
-        <form action={importWorkbookPriceItems}>
-          <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-            Tételárak bemásolása ({workbookPriceImportCount})
-          </button>
-        </form>
+        <details className="rounded-[18px] border-2 border-[#d3c3ad] bg-white p-3">
+          <summary className="cursor-pointer text-sm font-bold text-[#1e5a40]">
+            Tételárak kezelése
+          </summary>
+          <form action={importWorkbookPriceItems} className="mt-3">
+            <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
+              Hiányzó tételárak bemásolása ({workbookPriceImportCount})
+            </button>
+          </form>
+        </details>
       ) : null}
 
       {!isStaff ? (

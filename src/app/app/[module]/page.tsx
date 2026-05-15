@@ -935,11 +935,6 @@ function IncomeTable({
                 <td className="px-3 py-3 font-bold">
                   <div className="flex flex-wrap items-center gap-2">
                     {row.customer_name}
-                    {row.isWorkbookOnly ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-900">
-                        Excel
-                      </span>
-                    ) : null}
                   </div>
                 </td>
                 <td className="px-3 py-3">{row.site_address}</td>
@@ -1046,11 +1041,6 @@ function ExpenseTable({
                 <td className="px-3 py-3 font-bold">
                   <div className="flex flex-wrap items-center gap-2">
                     {row.vendor_name}
-                    {row.isWorkbookOnly ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-900">
-                        Excel
-                      </span>
-                    ) : null}
                   </div>
                 </td>
                 <td className="px-3 py-3">{row.item_name}</td>
@@ -1155,11 +1145,6 @@ function PayrollTable({
                 <td className="px-3 py-3 font-bold">
                   <div className="flex flex-wrap items-center gap-2">
                     {getPayrollEmployeeName(row)}
-                    {row.isWorkbookOnly ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-900">
-                        Excel
-                      </span>
-                    ) : null}
                   </div>
                 </td>
                 <td className="px-3 py-3">{formatNumber(row.normal_days ?? 0)}</td>

@@ -207,6 +207,10 @@ export function WorkLogForm({
           .filter((customer) => normalize(customer.name).includes(normalize(customerName)))
           .slice(0, 6)
       : [];
+  const datalistPriceOptions = useMemo(
+    () => priceOptions.slice(0, 450),
+    [priceOptions],
+  );
 
   function applyCustomer(customer: WorkbookCustomerOption) {
     setClientId(customer.id);
@@ -322,7 +326,7 @@ export function WorkLogForm({
     <form action={createWorkLog} className="grid gap-4">
       <input type="hidden" name="clientId" value={clientId} />
       <datalist id="work-log-task-options">
-        {priceOptions.map((option) => (
+        {datalistPriceOptions.map((option) => (
           <option
             key={option.id}
             value={option.name}
