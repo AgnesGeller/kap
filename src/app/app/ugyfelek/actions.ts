@@ -107,7 +107,7 @@ export async function importWorkbookClients() {
   const workbookCustomers = getWorkbookCustomerOptions();
 
   if (!workbookCustomers.length) {
-    redirect(`/app/ugyfelek?error=${encodeURIComponent("Nincs importálható Excel ügyfél.")}`);
+    redirect(`/app/ugyfelek?error=${encodeURIComponent("Nincs betölthető ügyfél.")}`);
   }
 
   const { supabase, companyId } = await getCompanyContext();
@@ -140,7 +140,7 @@ export async function importWorkbookClients() {
     }));
 
   if (!rowsToInsert.length) {
-    redirect(`/app/ugyfelek?message=${encodeURIComponent("Minden Excel ügyfél már szerepel a listában.")}`);
+    redirect(`/app/ugyfelek?message=${encodeURIComponent("Minden ügyfél már szerepel a listában.")}`);
   }
 
   const { error } = await supabase.from("clients").insert(rowsToInsert);
@@ -152,7 +152,7 @@ export async function importWorkbookClients() {
   revalidatePath("/app");
   revalidatePath("/app/ugyfelek");
   redirect(
-    `/app/ugyfelek?message=${encodeURIComponent(`${rowsToInsert.length} Excel ügyfél importálva.`)}`,
+    `/app/ugyfelek?message=${encodeURIComponent(`${rowsToInsert.length} ügyfél betöltve.`)}`,
   );
 }
 

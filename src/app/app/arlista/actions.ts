@@ -153,7 +153,7 @@ export async function importWorkbookPriceItems() {
   const workbookItems = getWorkbookPriceItems();
 
   if (!workbookItems.length) {
-    redirect(`/app/mukodes?error=${encodeURIComponent("Nincs importálható árlista tétel.")}`);
+    redirect(`/app/mukodes?error=${encodeURIComponent("Nincs betölthető árlista tétel.")}`);
   }
 
   const { supabase, companyId } = await getCompanyId();
@@ -202,7 +202,7 @@ export async function importWorkbookPriceItems() {
 
   if (!rowsToInsert.length) {
     redirect(
-      `/app/mukodes?message=${encodeURIComponent("Minden Excel árlista tétel már szerepel a listában.")}`,
+      `/app/mukodes?message=${encodeURIComponent("Minden árlista tétel már szerepel a listában.")}`,
     );
   }
 
@@ -216,6 +216,6 @@ export async function importWorkbookPriceItems() {
   revalidatePath("/app/mukodes");
   revalidatePath("/app/arlista");
   redirect(
-    `/app/mukodes?message=${encodeURIComponent(`${rowsToInsert.length} árlista tétel importálva.`)}`,
+    `/app/mukodes?message=${encodeURIComponent(`${rowsToInsert.length} árlista tétel betöltve.`)}`,
   );
 }

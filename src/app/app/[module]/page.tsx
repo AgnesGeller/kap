@@ -629,11 +629,16 @@ async function DailyEntryModulePage({
             <IncomeForm today={today} returnTo="/app/bevetelek" />
           </EntryPanel>
           {workbookOnlyIncomes.length ? (
-            <form action={importWorkbookIncomes}>
-              <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-                Meglévő bevételek bemásolása ({workbookOnlyIncomes.length})
-              </button>
-            </form>
+            <details className="rounded-[18px] border border-[#d3c3ad] bg-white px-4 py-3">
+              <summary className="cursor-pointer text-sm font-bold text-[#1f1a15]">
+                Adatfeltöltés
+              </summary>
+              <form action={importWorkbookIncomes} className="mt-3">
+                <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
+                  Bevételek betöltése ({workbookOnlyIncomes.length})
+                </button>
+              </form>
+            </details>
           ) : null}
           <SearchPanel
             page={page}
@@ -652,11 +657,16 @@ async function DailyEntryModulePage({
             <ExpenseForm today={today} returnTo="/app/kiadasok" />
           </EntryPanel>
           {workbookOnlyExpenses.length ? (
-            <form action={importWorkbookExpenses}>
-              <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-                Meglévő kiadások bemásolása ({workbookOnlyExpenses.length})
-              </button>
-            </form>
+            <details className="rounded-[18px] border border-[#d3c3ad] bg-white px-4 py-3">
+              <summary className="cursor-pointer text-sm font-bold text-[#1f1a15]">
+                Adatfeltöltés
+              </summary>
+              <form action={importWorkbookExpenses} className="mt-3">
+                <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
+                  Kiadások betöltése ({workbookOnlyExpenses.length})
+                </button>
+              </form>
+            </details>
           ) : null}
           <SearchPanel
             page={page}
@@ -679,11 +689,16 @@ async function DailyEntryModulePage({
             />
           </EntryPanel>
           {workbookPayrollCount ? (
-            <form action={importWorkbookPayrollEntries}>
-              <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
-                Meglévő munkavállalói költségek bemásolása ({workbookPayrollCount})
-              </button>
-            </form>
+            <details className="rounded-[18px] border border-[#d3c3ad] bg-white px-4 py-3">
+              <summary className="cursor-pointer text-sm font-bold text-[#1f1a15]">
+                Adatfeltöltés
+              </summary>
+              <form action={importWorkbookPayrollEntries} className="mt-3">
+                <button className="w-fit rounded-full bg-[#123f2d] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(5,15,12,0.18)] transition hover:bg-[#1d4d39]">
+                  Bérköltségek betöltése ({workbookPayrollCount})
+                </button>
+              </form>
+            </details>
           ) : null}
           <SearchPanel
             page={page}
@@ -1298,7 +1313,7 @@ export default async function BudgetModulePage({ params, searchParams }: PagePro
             Ez a modul teszt módban üres.
           </h1>
           <p className="mt-4 max-w-3xl text-base font-medium leading-8 text-[#44382e]">
-            A teszt belépés nem mutat éles költségvetési, Excelből importált vagy pénzügyi adatokat.
+            A teszt belépés nem mutat éles pénzügyi adatokat.
           </p>
         </section>
       </main>
@@ -1518,15 +1533,30 @@ export default async function BudgetModulePage({ params, searchParams }: PagePro
       ) : null}
 
       {dataTables.length ? (
-        <section className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+        <details className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-5 shadow-[0_16px_44px_rgba(26,20,16,0.07)]">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
+                  Részletes táblák
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
+                  {currentModule.title}
+                </h2>
+              </div>
+              <p className="rounded-full border border-[#d3c3ad] bg-[#fff8ee] px-4 py-2 text-sm font-bold text-[#493b2f]">
+                Megnyitás
+              </p>
+            </div>
+          </summary>
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
-                Teljes Excel-adat
+                Részletes adatok
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-[#17130f]">
+              <h3 className="mt-2 text-xl font-bold text-[#17130f]">
                 {currentModule.title}
-              </h2>
+              </h3>
             </div>
             <p className="rounded-full border border-[#d3c3ad] bg-[#fff8ee] px-4 py-2 text-sm font-bold text-[#493b2f]">
               {dataTables.length} tábla
@@ -1578,7 +1608,7 @@ export default async function BudgetModulePage({ params, searchParams }: PagePro
               </section>
             ))}
           </div>
-        </section>
+        </details>
       ) : null}
 
     </main>

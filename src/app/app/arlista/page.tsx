@@ -136,7 +136,7 @@ export default async function PriceListPage({ searchParams }: PageProps) {
       .order("name", { ascending: true })
       .limit(100),
     createQueryTimeoutResponse(
-      "Az árlista tábla még nincs élesítve a Supabase-ben, ezért az import következő lépés.",
+      "Az árlista tábla még nincs kész az adatbázisban.",
     ),
     6000,
   );
@@ -222,9 +222,6 @@ export default async function PriceListPage({ searchParams }: PageProps) {
               Egységár kézi felvitele
             </h2>
           </div>
-          <span className="rounded-full border border-emerald-300 bg-emerald-100 px-4 py-2 text-sm font-bold text-[#123f2d]">
-            Import előtt is használható
-          </span>
         </div>
 
         <form action={createPriceItem} className="mt-6 grid gap-5 lg:grid-cols-[1fr_0.7fr_0.35fr_0.45fr_0.35fr]">
@@ -475,8 +472,7 @@ export default async function PriceListPage({ searchParams }: PageProps) {
           </div>
         ) : (
           <div className="mt-6 rounded-[18px] border-2 border-dashed border-[#cdbda8] bg-[#fff8ee] px-4 py-5 text-base font-medium leading-8 text-[#44382e]">
-            Még nincs beimportált árlista. A következő lépésben a meglévő
-            költségvetésből kiválasztjuk, melyik fülekből legyenek egységárak.
+            Még nincs árlista tétel. Vigyél fel új egységárat fent.
           </div>
         )}
       </section>

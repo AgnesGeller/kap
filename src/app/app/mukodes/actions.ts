@@ -462,7 +462,7 @@ export async function importWorkbookIncomes() {
   const workbookIncomes = getWorkbookIncomeEntries();
 
   if (!workbookIncomes.length) {
-    redirect(`/app/bevetelek?error=${encodeURIComponent("Nincs importálható Excel bevétel.")}`);
+    redirect(`/app/bevetelek?error=${encodeURIComponent("Nincs betölthető bevétel.")}`);
   }
 
   const { supabase, companyId } = await getCompanyContext();
@@ -512,7 +512,7 @@ export async function importWorkbookIncomes() {
     }));
 
   if (!rowsToInsert.length) {
-    redirect(`/app/bevetelek?message=${encodeURIComponent("Minden Excel bevétel már szerepel a listában.")}`);
+    redirect(`/app/bevetelek?message=${encodeURIComponent("Minden bevétel már szerepel a listában.")}`);
   }
 
   const { error } = await supabase.from("income_entries").insert(rowsToInsert);
@@ -525,7 +525,7 @@ export async function importWorkbookIncomes() {
   revalidatePath("/app/mukodes");
   revalidatePath("/app/bevetelek");
   redirect(
-    `/app/bevetelek?message=${encodeURIComponent(`${rowsToInsert.length} Excel bevétel importálva.`)}#lista`,
+    `/app/bevetelek?message=${encodeURIComponent(`${rowsToInsert.length} bevétel betöltve.`)}#lista`,
   );
 }
 
@@ -577,7 +577,7 @@ export async function importWorkbookExpenses() {
   const workbookExpenses = getWorkbookExpenseEntries();
 
   if (!workbookExpenses.length) {
-    redirect(`/app/kiadasok?error=${encodeURIComponent("Nincs importálható Excel kiadás.")}`);
+    redirect(`/app/kiadasok?error=${encodeURIComponent("Nincs betölthető kiadás.")}`);
   }
 
   const { supabase, companyId } = await getCompanyContext();
@@ -627,7 +627,7 @@ export async function importWorkbookExpenses() {
     }));
 
   if (!rowsToInsert.length) {
-    redirect(`/app/kiadasok?message=${encodeURIComponent("Minden Excel kiadás már szerepel a listában.")}#lista`);
+    redirect(`/app/kiadasok?message=${encodeURIComponent("Minden kiadás már szerepel a listában.")}#lista`);
   }
 
   const { error } = await supabase.from("expense_entries").insert(rowsToInsert);
@@ -640,7 +640,7 @@ export async function importWorkbookExpenses() {
   revalidatePath("/app/mukodes");
   revalidatePath("/app/kiadasok");
   redirect(
-    `/app/kiadasok?message=${encodeURIComponent(`${rowsToInsert.length} Excel kiadás importálva.`)}#lista`,
+    `/app/kiadasok?message=${encodeURIComponent(`${rowsToInsert.length} kiadás betöltve.`)}#lista`,
   );
 }
 
@@ -743,7 +743,7 @@ export async function importWorkbookPayrollEntries() {
 
   if (!workbookPayrollRows.length) {
     redirect(
-      `/app/munkavallaloi-koltsegek?error=${encodeURIComponent("Nincs importálható Excel munkavállalói költség.")}`,
+      `/app/munkavallaloi-koltsegek?error=${encodeURIComponent("Nincs betölthető munkavállalói költség.")}`,
     );
   }
 
@@ -860,7 +860,7 @@ export async function importWorkbookPayrollEntries() {
 
   if (!rowsToInsert.length) {
     redirect(
-      `/app/munkavallaloi-koltsegek?message=${encodeURIComponent("Minden Excel munkavállalói költség már szerepel a listában.")}`,
+      `/app/munkavallaloi-koltsegek?message=${encodeURIComponent("Minden munkavállalói költség már szerepel a listában.")}`,
     );
   }
 
@@ -873,7 +873,7 @@ export async function importWorkbookPayrollEntries() {
   revalidatePath("/app");
   revalidatePath("/app/munkavallaloi-koltsegek");
   redirect(
-    `/app/munkavallaloi-koltsegek?message=${encodeURIComponent(`${rowsToInsert.length} Excel munkavállalói költség importálva.`)}`,
+    `/app/munkavallaloi-koltsegek?message=${encodeURIComponent(`${rowsToInsert.length} munkavállalói költség betöltve.`)}`,
   );
 }
 
