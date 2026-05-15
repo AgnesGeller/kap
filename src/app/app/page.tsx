@@ -175,7 +175,22 @@ export default async function AdminPage({ searchParams }: PageProps) {
       </section>
 
       {dashboard ? (
-      <section className="rounded-[30px] border-2 border-[#1e5a40] bg-[#10201a] p-5 text-white shadow-[0_18px_50px_rgba(10,20,17,0.22)] lg:p-7">
+      <details className="rounded-[26px] border-2 border-[#d3c3ad] bg-white p-4 shadow-[0_14px_36px_rgba(26,20,16,0.07)]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#674b25]">
+              Statisztika
+            </p>
+            <h2 className="mt-1 text-2xl font-bold text-[#17130f]">
+              Részletes pénzügyi áttekintés
+            </h2>
+          </div>
+          <span className="rounded-full bg-[#123f2d] px-4 py-2 text-sm font-bold text-white">
+            Megnyitás
+          </span>
+        </summary>
+
+      <section className="mt-5 rounded-[30px] border-2 border-[#1e5a40] bg-[#10201a] p-5 text-white shadow-[0_18px_50px_rgba(10,20,17,0.22)] lg:p-7">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="inline-flex rounded-full border border-emerald-300/50 bg-emerald-300/12 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-100">
@@ -338,6 +353,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </div>
         </div>
       </section>
+      </details>
       ) : null}
 
       <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
@@ -444,14 +460,6 @@ export default async function AdminPage({ searchParams }: PageProps) {
               className="rounded-[18px] border-2 border-[#ded0bd] bg-[#fff8ee] px-4 py-4 transition hover:border-[#1e5a40]"
             >
               <p className="text-lg font-bold text-[#17130f]">{text.clientList}</p>
-            </Link>
-            <Link
-              href="/app/ugyfelnyilvantartas"
-              className="rounded-[18px] border-2 border-[#ded0bd] bg-[#fff8ee] px-4 py-4 transition hover:border-[#1e5a40]"
-            >
-              <p className="text-lg font-bold text-[#17130f]">
-                {"Ügyfélnyilvántartás"}
-              </p>
             </Link>
           </div>
         </section>
