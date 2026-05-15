@@ -1,6 +1,7 @@
 -- Manual Supabase SQL helper.
 -- Run in Supabase SQL Editor when the auth users already exist.
 -- It keeps the test account separated from live financial data.
+-- It does not require casting to public.app_role, so it also works if the role column is plain text.
 
 with test_company as (
   insert into public.companies (
@@ -43,8 +44,8 @@ test_profile as (
   select
     test_user.id,
     test_company.id,
-    'Teszt felhasznalo',
-    'admin'::public.app_role
+    'Teszt felhasználó',
+    'admin'
   from test_user
   cross join test_company
   on conflict (id) do update
@@ -65,8 +66,8 @@ owner_profile as (
   select
     owner_user.id,
     '02a3f0c8-9e8e-43a5-b8df-9511a10abe19'::uuid,
-    'Diszkertek admin',
-    'owner'::public.app_role
+    'Díszkertek admin',
+    'owner'
   from owner_user
   on conflict (id) do update
   set
