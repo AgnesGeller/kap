@@ -73,18 +73,15 @@ export default async function SignUpPage({ searchParams }: PageProps) {
         </section>
 
         <section className="rounded-[32px] bg-[#10201a] p-8 text-white shadow-[0_24px_70px_rgba(10,20,17,0.34)] lg:p-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200/78">Két céges indulás</p>
-          <h2 className="mt-4 text-4xl font-semibold leading-tight">Most belépés, utána céges adatmodellek.</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200/78">KAP rendszer</p>
+          <h2 className="mt-4 text-4xl font-semibold leading-tight">Pénzügyi admin felület napi munkához.</h2>
           <p className="mt-5 max-w-xl text-base leading-8 text-white/74">
-            A regisztráció most még egyszerű auth-lépcső. A következő körökben erre jön rá a company, profile, client és survey logika a Supabase adatbázisban.
+            A fiók céges adatokhoz kapcsolódik, így minden felhasználó csak a saját jogosultságának megfelelő részeket látja.
           </p>
 
           <div className="mt-8 space-y-4">
             <div className="rounded-[24px] border border-white/10 bg-white/6 p-5 text-sm leading-7 text-white/76">
               Az email megerősítés Supabase beállítástól függően szükséges lehet első belépés előtt.
-            </div>
-            <div className="rounded-[24px] border border-white/10 bg-white/6 p-5 text-sm leading-7 text-white/76">
-              A user adatok később nem a JWT user_metadata alapján lesznek jogosultságra használva, hanem külön adatbázis-struktúrában.
             </div>
           </div>
         </section>

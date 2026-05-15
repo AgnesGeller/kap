@@ -20,17 +20,14 @@ export default async function SignInPage({ searchParams }: PageProps) {
       <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-[32px] bg-[#10201a] p-8 text-white shadow-[0_24px_70px_rgba(10,20,17,0.34)] lg:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200/78">KAP belépés</p>
-          <h1 className="mt-4 text-4xl font-semibold leading-tight">Bejelentkezés a belső rendszerhez.</h1>
+          <h1 className="mt-4 text-4xl font-semibold leading-tight">Belépés a KAP rendszerbe.</h1>
           <p className="mt-5 max-w-xl text-base leading-8 text-white/74">
-            Innen indul majd a cégenként elkülönített admin felület: mentett felmérések, ügyfelek, ajánlatok és költségadatok.
+            Napi munkalapok, bevételek, kiadások, munkavállalói költségek és ügyfelek egy helyen.
           </p>
 
           <div className="mt-8 space-y-4">
             <div className="rounded-[24px] border border-white/10 bg-white/6 p-5 text-sm leading-7 text-white/76">
               Csak belépett felhasználó láthatja a saját cégéhez tartozó adatokat.
-            </div>
-            <div className="rounded-[24px] border border-white/10 bg-white/6 p-5 text-sm leading-7 text-white/76">
-              A következő körben a mentett piszkozatok és a felmérések listája is userhez lesz kötve.
             </div>
           </div>
         </section>
