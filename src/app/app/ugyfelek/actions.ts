@@ -32,6 +32,20 @@ async function getCompanyContext() {
     );
   }
 
+  if (user.email?.toLocaleLowerCase("hu-HU") === "teszt@teszt.com") {
+    const { data: company } = await supabase
+      .from("companies")
+      .select("slug")
+      .eq("id", profile.company_id)
+      .maybeSingle();
+
+    if (company?.slug !== "teszt-ceg") {
+      redirect(
+        `/app/ugyfelek?error=${encodeURIComponent("A teszt fiók nincs a teszt céghez kötve. Supabase profil javítás szükséges.")}`,
+      );
+    }
+  }
+
   return { supabase, companyId: profile.company_id };
 }
 

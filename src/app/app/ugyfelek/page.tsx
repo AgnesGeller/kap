@@ -138,17 +138,19 @@ export default async function ClientsPage({ searchParams }: PageProps) {
         (customer) => !isSampleCustomerName(customer.name),
       );
 
-  const { data: clients, error } = await withTimeout(
-    supabase
-      .from("clients")
-      .select("id, name, email, phone, project_address, billing_address, notes, created_at")
-      .order("name", { ascending: true })
-      .limit(600),
-    createQueryTimeoutResponse(
-      "Az ügyféllista lekérése túl sokáig tartott. Próbálj keresni névre vagy címre.",
-    ),
-    6000,
-  );
+  const { data: clients, error } = isTestAccount
+    ? { data: [] as ClientRow[], error: null }
+    : await withTimeout(
+        supabase
+          .from("clients")
+          .select("id, name, email, phone, project_address, billing_address, notes, created_at")
+          .order("name", { ascending: true })
+          .limit(600),
+        createQueryTimeoutResponse(
+          "Az ügyféllista lekérése túl sokáig tartott. Próbálj keresni névre vagy címre.",
+        ),
+        6000,
+      );
 
   const databaseClients = (clients ?? []) as ClientRow[];
   const databaseNames = new Set(databaseClients.map((client) => normalize(client.name)));

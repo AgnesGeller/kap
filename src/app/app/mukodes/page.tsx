@@ -217,28 +217,30 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   const workbookCustomers = isTestAccount ? [] : getWorkbookCustomerOptions();
   const workbookPriceItems = isTestAccount ? [] : getWorkbookPriceItems();
 
-  const [clientsResult, priceItemsResult] = await Promise.all([
-    withTimeout(
-      supabase
-        .from("clients")
-        .select("id, name, email, phone, billing_address, project_address, notes")
-        .order("name", { ascending: true })
-        .limit(CLIENT_LIMIT),
-      createQueryFallbackSuccess([]),
-      QUERY_TIMEOUT_MS,
-    ),
-    withTimeout(
-      supabase
-        .from("price_items")
-        .select("id, name, category, unit, unit_price, vat_rate, notes, source")
-        .eq("status", "active")
-        .order("name", { ascending: true })
-        .limit(1500),
-      createQueryFallbackSuccess([]),
-      QUERY_TIMEOUT_MS,
-    ),
-  ]);
-  const [workLogsResult, workLogItemsResult] = isStaff
+  const [clientsResult, priceItemsResult] = isTestAccount
+    ? [createQueryFallbackSuccess([]), createQueryFallbackSuccess([])]
+    : await Promise.all([
+        withTimeout(
+          supabase
+            .from("clients")
+            .select("id, name, email, phone, billing_address, project_address, notes")
+            .order("name", { ascending: true })
+            .limit(CLIENT_LIMIT),
+          createQueryFallbackSuccess([]),
+          QUERY_TIMEOUT_MS,
+        ),
+        withTimeout(
+          supabase
+            .from("price_items")
+            .select("id, name, category, unit, unit_price, vat_rate, notes, source")
+            .eq("status", "active")
+            .order("name", { ascending: true })
+            .limit(1500),
+          createQueryFallbackSuccess([]),
+          QUERY_TIMEOUT_MS,
+        ),
+      ]);
+  const [workLogsResult, workLogItemsResult] = isStaff || isTestAccount
     ? [createQueryFallbackSuccess([]), createQueryFallbackSuccess([])]
     : await Promise.all([
         withTimeout(

@@ -409,33 +409,27 @@ async function DailyEntryModulePage({
       `vendor_name.ilike.${searchPattern},item_name.ilike.${searchPattern},invoice_number.ilike.${searchPattern},notes.ilike.${searchPattern}`,
     );
   }
-  const [incomeResult, expenseResult, employeeResult, payrollResult] =
-    await Promise.all([
-      withTimeout(
-        incomeQuery,
+  const [incomeResult, expenseResult, employeeResult, payrollResult] = isTestAccount
+    ? [
         createQueryFallbackSuccess([]),
-        3500,
-      ),
-      withTimeout(
-        expenseQuery,
         createQueryFallbackSuccess([]),
-        3500,
-      ),
-      withTimeout(
-        supabase
-          .from("employees")
-          .select("id, name, role_title, phone, daily_rate, hourly_rate, overtime_rate")
-          .order("name", { ascending: true })
-          .limit(120),
         createQueryFallbackSuccess([]),
-        3500,
-      ),
-      withTimeout(
-        payrollQuery,
         createQueryFallbackSuccess([]),
-        3500,
-      ),
-    ]);
+      ]
+    : await Promise.all([
+        withTimeout(incomeQuery, createQueryFallbackSuccess([]), 3500),
+        withTimeout(expenseQuery, createQueryFallbackSuccess([]), 3500),
+        withTimeout(
+          supabase
+            .from("employees")
+            .select("id, name, role_title, phone, daily_rate, hourly_rate, overtime_rate")
+            .order("name", { ascending: true })
+            .limit(120),
+          createQueryFallbackSuccess([]),
+          3500,
+        ),
+        withTimeout(payrollQuery, createQueryFallbackSuccess([]), 3500),
+      ]);
 
   const databaseIncomes = (incomeResult.data ?? []) as IncomeEntryRow[];
   const databaseExpenses = (expenseResult.data ?? []) as ExpenseEntryRow[];
