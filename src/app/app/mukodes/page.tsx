@@ -65,11 +65,6 @@ type PriceItemRow = {
   source: string | null;
 };
 
-type PeriodStats = {
-  count: number;
-  amount: number;
-};
-
 type ItemStat = {
   key: string;
   name: string;
@@ -80,7 +75,6 @@ type ItemStat = {
 
 const QUERY_TIMEOUT_MS = 3500;
 const WORK_LOG_LIMIT = 60;
-const WORK_LOG_ITEM_LIMIT = 160;
 const CLIENT_LIMIT = 180;
 
 function formatMoney(value: number | null | undefined) {
@@ -115,29 +109,6 @@ function getLocalDateKey(date = new Date()) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-function getPeriodStats<T>(
-  rows: T[],
-  getDate: (row: T) => string | null | undefined,
-  getAmount: (row: T) => number | null | undefined,
-  predicate: (date: string) => boolean,
-): PeriodStats {
-  return rows.reduce(
-    (stats, row) => {
-      const date = getDate(row);
-
-      if (!date || !predicate(date)) {
-        return stats;
-      }
-
-      return {
-        count: stats.count + 1,
-        amount: stats.amount + Number(getAmount(row) ?? 0),
-      };
-    },
-    { count: 0, amount: 0 },
-  );
 }
 
 function getItemStats(
@@ -207,11 +178,6 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   const isTestAccount =
     authData.user?.email?.toLocaleLowerCase("hu-HU") === "teszt@teszt.com";
   const today = getLocalDateKey();
-  const currentMonth = today.slice(0, 7);
-  const currentYear = today.slice(0, 4);
-  const isToday = (date: string) => date.slice(0, 10) === today;
-  const isCurrentMonth = (date: string) => date.slice(0, 7) === currentMonth;
-  const isCurrentYear = (date: string) => date.slice(0, 4) === currentYear;
   const settlementTaskOptions = getSettlementDetailItemHeaders();
   const settlementUnitOptions = getSettlementDetailUnitOptions();
   const workbookCustomers = isTestAccount ? [] : getWorkbookCustomerOptions();
@@ -240,10 +206,10 @@ export default async function OperationsPage({ searchParams }: PageProps) {
           QUERY_TIMEOUT_MS,
         ),
       ]);
-  const [workLogsResult, workLogItemsResult] = isStaff || isTestAccount
-    ? [createQueryFallbackSuccess([]), createQueryFallbackSuccess([])]
-    : await Promise.all([
-        withTimeout(
+  const workLogsResult =
+    isStaff || isTestAccount
+      ? createQueryFallbackSuccess([])
+      : await withTimeout(
           supabase
             .from("work_logs")
             .select(
@@ -253,23 +219,11 @@ export default async function OperationsPage({ searchParams }: PageProps) {
             .limit(WORK_LOG_LIMIT),
           createQueryFallbackSuccess([]),
           QUERY_TIMEOUT_MS,
-        ),
-        withTimeout(
-          supabase
-            .from("work_log_items")
-            .select("id, work_log_id, name, quantity, unit, total_amount")
-            .order("created_at", { ascending: false })
-            .limit(WORK_LOG_ITEM_LIMIT),
-          createQueryFallbackSuccess([]),
-          QUERY_TIMEOUT_MS,
-        ),
-      ]);
+        );
 
   const workLogs = (workLogsResult.data ?? []) as WorkLogRow[];
-  const workLogItems = (workLogItemsResult.data ?? []) as WorkLogItemRow[];
   const clients = (clientsResult.data ?? []) as ClientRow[];
   const priceItems = (priceItemsResult.data ?? []) as PriceItemRow[];
-  const workLogDateById = new Map(workLogs.map((row) => [row.id, row.work_date]));
 
   const customerOptions = mergeCustomerOptions(
     clients.map((client) => ({
@@ -303,30 +257,13 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   ).length;
   const setupError =
     workLogsResult.error?.message ??
-    workLogItemsResult.error?.message ??
     clientsResult.error?.message ??
     priceItemsResult.error?.message ??
     "";
-
-  const dailyWork = getPeriodStats(
-    workLogs,
-    (row) => row.work_date,
-    (row) => row.total_amount,
-    isToday,
-  );
-  const monthlyWork = getPeriodStats(
-    workLogs,
-    (row) => row.work_date,
-    (row) => row.total_amount,
-    isCurrentMonth,
-  );
-  const yearlyWork = getPeriodStats(
-    workLogs,
-    (row) => row.work_date,
-    (row) => row.total_amount,
-    isCurrentYear,
-  );
-  const monthlyItemStats = getItemStats(workLogItems, workLogDateById, isCurrentMonth).slice(0, 10);
+  const dailyWork = { count: 0, amount: 0 };
+  const monthlyWork = { count: 0, amount: 0 };
+  const yearlyWork = { count: 0, amount: 0 };
+  const monthlyItemStats = getItemStats([], new Map(), () => false);
 
   return (
     <main className="flex w-full flex-1 flex-col gap-4">
@@ -374,7 +311,7 @@ export default async function OperationsPage({ searchParams }: PageProps) {
         </details>
       ) : null}
 
-      {!isStaff ? (
+      {false && !isStaff ? (
         <>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Ma" value={formatMoney(dailyWork.amount)} note={`${dailyWork.count} munkalap`} />

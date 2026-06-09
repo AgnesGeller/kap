@@ -116,15 +116,21 @@ deleted_clients as (
   delete from public.clients
   where company_id in (select id from test_company_id)
   returning id
+),
+expected_users as (
+  select 'teszt@teszt.com' as email
+  union all
+  select 'info@diszkertek.hu' as email
 )
 select
-  u.email,
+  expected_users.email,
+  case when u.id is null then 'hiányzik az Auth Users listából' else 'rendben' end as auth_status,
   p.full_name,
   p.role,
   c.slug as company_slug,
   c.name as company_name
-from auth.users u
+from expected_users
+left join auth.users u on lower(u.email) = expected_users.email
 left join public.profiles p on p.id = u.id
 left join public.companies c on c.id = p.company_id
-where lower(u.email) in ('teszt@teszt.com', 'info@diszkertek.hu')
-order by u.email;
+order by expected_users.email;

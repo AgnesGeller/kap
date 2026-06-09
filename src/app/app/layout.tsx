@@ -16,20 +16,19 @@ export default async function AppLayout({ children }: LayoutProps) {
       <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-6 py-10 lg:px-10 lg:py-14">
         <section className="rounded-[32px] border border-amber-200 bg-white p-8 shadow-[0_20px_60px_rgba(26,20,16,0.06)]">
           <div className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-amber-900">
-            {"Supabase beállítás szükséges"}
+            Supabase beállítás szükséges
           </div>
           <h1 className="mt-5 text-3xl font-semibold tracking-tight text-[#1f1a15] lg:text-4xl">
-            {"Az admin nézet még nincs összekötve a Supabase projekttel."}
+            Az admin nézet még nincs összekötve a Supabase projekttel.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-8 text-[#615345]">
-            {"Hozd létre a "}
-            <code>.env.local</code>
-            {" fájlt, és add meg a két publikus Supabase értéket."}
+            Hozd létre a <code>.env.local</code> fájlt, és add meg a két
+            publikus Supabase értéket.
           </p>
 
           <div className="mt-8 rounded-[24px] border border-[#ece3d7] bg-[#fcf8f2] p-5">
             <p className="text-sm font-semibold text-[#1f1a15]">
-              {"Szükséges változók"}
+              Szükséges változók
             </p>
             <pre className="mt-3 overflow-x-auto rounded-[18px] bg-[#10201a] px-4 py-4 text-sm leading-7 text-emerald-100">
 NEXT_PUBLIC_SUPABASE_URL=...
@@ -42,13 +41,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
               href="/"
               className="inline-flex rounded-full border border-[#d8ccbc] px-5 py-3 text-sm font-semibold text-[#2a211a] transition hover:border-[#bfa988] hover:bg-[#f6efe5]"
             >
-              {"Vissza a főoldalra"}
+              Vissza a főoldalra
             </Link>
             <Link
               href="/auth/sign-in"
               className="inline-flex rounded-full bg-[#1e5a40] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#184a34]"
             >
-              {"Belépési oldal"}
+              Belépési oldal
             </Link>
           </div>
         </section>
@@ -92,12 +91,16 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
   const navItems = isStaff
     ? [{ href: "/app/mukodes", label: "Munkalap" }]
     : [
-    { href: "/app/mukodes", label: "Munkalap" },
-    { href: "/app/bevetelek", label: "Bevételek" },
-    { href: "/app/kiadasok", label: "Kiadások" },
-    { href: "/app/munkavallaloi-koltsegek", label: "Munkavállalói költségek" },
-    { href: "/app/ugyfelek", label: "Ügyfélnyilvántartás" },
-  ];
+        { href: "/app/mukodes", label: "Munkalap" },
+        { href: "/app/bevetelek", label: "Bevételek" },
+        { href: "/app/kiadasok", label: "Kiadások" },
+        {
+          href: "/app/munkavallaloi-koltsegek",
+          label: "Munkavállalói költségek",
+        },
+        { href: "/app/ugyfelek", label: "Ügyfélnyilvántartás" },
+        { href: "/app/statisztika", label: "Statisztika" },
+      ];
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-4 lg:px-8">
@@ -105,7 +108,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#674b25]">
-              {"Belépve"}
+              Belépve
             </p>
             <h2 className="mt-1 break-all text-base font-bold text-[#17130f]">
               {profile?.full_name || user.email}
@@ -129,7 +132,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
             ))}
             <form action={signOut}>
               <button className="inline-flex rounded-full bg-[#1e5a40] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#184a34]">
-                {"Kijelentkezés"}
+                Kijelentkezés
               </button>
             </form>
           </div>
