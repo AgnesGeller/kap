@@ -28,6 +28,7 @@ type WorkLogRow = {
   work_date: string;
   customer_name: string;
   task_summary: string;
+  site_address: string | null;
   total_amount: number | null;
   labor_total: number | null;
   material_total: number | null;
@@ -206,20 +207,21 @@ export default async function OperationsPage({ searchParams }: PageProps) {
           QUERY_TIMEOUT_MS,
         ),
       ]);
-  const workLogsResult =
-    isStaff || isTestAccount
-      ? createQueryFallbackSuccess([])
-      : await withTimeout(
-          supabase
-            .from("work_logs")
-            .select(
-              "id, work_date, customer_name, task_summary, total_amount, labor_total, material_total, work_hours, status",
-            )
-            .order("work_date", { ascending: false })
-            .limit(WORK_LOG_LIMIT),
-          createQueryFallbackSuccess([]),
-          QUERY_TIMEOUT_MS,
-        );
+  const workLogsQuery = supabase
+    .from("work_logs")
+    .select(
+      "id, work_date, customer_name, site_address, task_summary, total_amount, labor_total, material_total, work_hours, status",
+    )
+    .order("work_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(isStaff ? 12 : WORK_LOG_LIMIT);
+  const scopedWorkLogsQuery =
+    isStaff && authData.user?.id
+      ? workLogsQuery.eq("created_by", authData.user.id)
+      : workLogsQuery;
+  const workLogsResult = isTestAccount
+    ? createQueryFallbackSuccess([])
+    : await withTimeout(scopedWorkLogsQuery, createQueryFallbackSuccess([]), QUERY_TIMEOUT_MS);
 
   const workLogs = (workLogsResult.data ?? []) as WorkLogRow[];
   const clients = (clientsResult.data ?? []) as ClientRow[];
@@ -297,6 +299,19 @@ export default async function OperationsPage({ searchParams }: PageProps) {
           customerOptions={customerOptions}
         />
       </section>
+
+      <RecentList
+        title={isStaff ? "Saját mentett munkalapok" : "Legutóbbi munkalapok"}
+        empty="Még nincs mentett munkalap."
+        rows={workLogs.slice(0, isStaff ? 12 : 10).map((row) => ({
+          id: row.id,
+          title: row.customer_name,
+          meta: `${formatDate(row.work_date)} · ${formatNumber(row.work_hours)} óra`,
+          value: formatMoney(row.total_amount),
+          note: [row.site_address, row.task_summary].filter(Boolean).join(" · "),
+          deleteAction: deleteWorkLog,
+        }))}
+      />
 
       {!isStaff && workbookPriceImportCount ? (
         <details className="rounded-[18px] border-2 border-[#d3c3ad] bg-white p-3">
