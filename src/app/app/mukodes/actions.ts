@@ -148,7 +148,7 @@ async function getCompanyContext() {
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("id, company_id")
+    .select("id, company_id, role")
     .eq("id", user.id)
     .single();
 
@@ -172,7 +172,7 @@ async function getCompanyContext() {
     }
   }
 
-  return { supabase, companyId: profile.company_id, profileId: profile.id };
+  return { supabase, companyId: profile.company_id, profileId: profile.id, role: profile.role };
 }
 
 export async function createWorkLog(formData: FormData) {
@@ -1023,6 +1023,70 @@ export async function updatePayrollEntry(formData: FormData) {
   revalidatePath("/app");
   revalidatePath("/app/munkavallaloi-koltsegek");
   redirect(withMessage(returnTo, "Fizetés módosítva."));
+}
+
+export async function updateWorkLog(formData: FormData) {
+  const id = getString(formData.get("id"));
+  const customerName = getString(formData.get("customerName"));
+  const siteAddress = getString(formData.get("siteAddress"));
+  const taskSummary = getString(formData.get("taskSummary"));
+  const workDate = getString(formData.get("workDate"));
+  const totalAmount = getNumber(formData.get("totalAmount"));
+
+  if (!isUuid(id)) {
+    redirect(`/app/mukodes?error=${encodeURIComponent("Érvénytelen munkalap azonosító.")}`);
+  }
+
+  if (!customerName || !taskSummary) {
+    redirect(
+      `/app/mukodes?error=${encodeURIComponent("A módosításhoz ügyfél és elvégzett munka szükséges.")}`,
+    );
+  }
+
+  const { supabase, companyId, profileId, role } = await getCompanyContext();
+  let workLogUpdate = supabase
+    .from("work_logs")
+    .update({
+      customer_name: customerName,
+      site_address: siteAddress || null,
+      task_summary: taskSummary,
+      work_date: workDate || new Date().toISOString().slice(0, 10),
+      total_amount: totalAmount,
+    })
+    .eq("id", id)
+    .eq("company_id", companyId);
+
+  if (role === "staff") {
+    workLogUpdate = workLogUpdate.eq("created_by", profileId);
+  }
+
+  const { error } = await workLogUpdate;
+
+  if (error) {
+    redirect(`/app/mukodes?error=${encodeURIComponent(error.message)}`);
+  }
+
+  const { error: incomeError } = await supabase
+    .from("income_entries")
+    .update({
+      customer_name: customerName,
+      site_address: siteAddress || null,
+      description: taskSummary,
+      income_date: workDate || new Date().toISOString().slice(0, 10),
+      calculated_amount: totalAmount,
+      amount: totalAmount,
+    })
+    .eq("work_log_id", id)
+    .eq("company_id", companyId);
+
+  if (incomeError) {
+    redirect(`/app/mukodes?error=${encodeURIComponent(incomeError.message)}`);
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/mukodes");
+  revalidatePath("/app/bevetelek");
+  redirect(`/app/mukodes?message=${encodeURIComponent("Munkalap módosítva.")}`);
 }
 
 async function deleteCompanyScopedRow(tableName: string, id: string) {

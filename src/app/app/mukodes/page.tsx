@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { importWorkbookPriceItems } from "@/app/app/arlista/actions";
-import { deleteWorkLog } from "@/app/app/mukodes/actions";
+import { deleteWorkLog, updateWorkLog } from "@/app/app/mukodes/actions";
 import { ConfirmSubmitButton } from "@/app/app/mukodes/ConfirmSubmitButton";
 import { WorkLogForm } from "@/app/app/mukodes/WorkLogForm";
 import { withTimeout } from "@/lib/async";
@@ -303,12 +303,18 @@ export default async function OperationsPage({ searchParams }: PageProps) {
       <RecentList
         title={isStaff ? "Saját mentett munkalapok" : "Legutóbbi munkalapok"}
         empty="Még nincs mentett munkalap."
-        rows={workLogs.slice(0, isStaff ? 12 : 10).map((row) => ({
+        rows={workLogs.map((row) => ({
           id: row.id,
           title: row.customer_name,
           meta: `${formatDate(row.work_date)} · ${formatNumber(row.work_hours)} óra`,
           value: formatMoney(row.total_amount),
           note: [row.site_address, row.task_summary].filter(Boolean).join(" · "),
+          workDate: row.work_date,
+          customerName: row.customer_name,
+          siteAddress: row.site_address ?? "",
+          taskSummary: row.task_summary,
+          totalAmount: row.total_amount ?? 0,
+          updateAction: updateWorkLog,
           deleteAction: deleteWorkLog,
         }))}
       />
@@ -515,6 +521,12 @@ function RecentList({
     value: string;
     note?: string;
     badge?: string;
+    workDate?: string;
+    customerName?: string;
+    siteAddress?: string;
+    taskSummary?: string;
+    totalAmount?: number;
+    updateAction?: (formData: FormData) => Promise<void>;
     deleteAction?: (formData: FormData) => Promise<void>;
   }>;
 }) {
@@ -524,7 +536,7 @@ function RecentList({
         <h2 className="text-xl font-bold text-[#17130f]">{title}</h2>
         {action}
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 max-h-[460px] space-y-2 overflow-y-auto pr-1">
         {rows.length ? (
           rows.map((row) => (
             <article key={row.id} className="rounded-[16px] bg-[#fff8ee] px-4 py-3">
@@ -545,17 +557,74 @@ function RecentList({
               {row.note ? (
                 <p className="mt-1 text-sm font-semibold leading-6 text-[#5f5144]">{row.note}</p>
               ) : null}
-              {row.deleteAction ? (
-                <form action={row.deleteAction} className="mt-2">
-                  <input type="hidden" name="id" value={row.id} />
-                  <ConfirmSubmitButton
-                    message="Biztosan törlöd ezt a sort?"
-                    className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
-                  >
-                    Törlés
-                  </ConfirmSubmitButton>
-                </form>
-              ) : null}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {row.updateAction ? (
+                  <details className="w-full rounded-[14px] border border-[#d8ccbc] bg-white px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.1em] text-[#1e5a40]">
+                      Módosítás
+                    </summary>
+                    <form action={row.updateAction} className="mt-3 grid gap-2 md:grid-cols-2">
+                      <input type="hidden" name="id" value={row.id} />
+                      <label className="text-xs font-bold text-[#493b2f]">
+                        Dátum
+                        <input
+                          type="date"
+                          name="workDate"
+                          defaultValue={row.workDate}
+                          className="mt-1 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-[#493b2f]">
+                        Ügyfél
+                        <input
+                          name="customerName"
+                          defaultValue={row.customerName}
+                          className="mt-1 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-[#493b2f] md:col-span-2">
+                        Cím
+                        <input
+                          name="siteAddress"
+                          defaultValue={row.siteAddress}
+                          className="mt-1 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-[#493b2f]">
+                        Végösszeg
+                        <input
+                          name="totalAmount"
+                          inputMode="decimal"
+                          defaultValue={row.totalAmount}
+                          className="mt-1 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-[#493b2f] md:col-span-2">
+                        Elvégzett munka
+                        <textarea
+                          name="taskSummary"
+                          defaultValue={row.taskSummary}
+                          className="mt-1 min-h-20 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
+                        />
+                      </label>
+                      <button className="w-fit rounded-full bg-[#1e5a40] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#184a34]">
+                        Mentés
+                      </button>
+                    </form>
+                  </details>
+                ) : null}
+                {row.deleteAction ? (
+                  <form action={row.deleteAction}>
+                    <input type="hidden" name="id" value={row.id} />
+                    <ConfirmSubmitButton
+                      message="Biztosan törlöd ezt a sort?"
+                      className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
+                    >
+                      Törlés
+                    </ConfirmSubmitButton>
+                  </form>
+                ) : null}
+              </div>
             </article>
           ))
         ) : (
