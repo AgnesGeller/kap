@@ -29,6 +29,8 @@ type WorkLogRow = {
   customer_name: string;
   task_summary: string;
   site_address: string | null;
+  notes: string | null;
+  is_flat_rate: boolean | null;
   total_amount: number | null;
   labor_total: number | null;
   material_total: number | null;
@@ -42,7 +44,18 @@ type WorkLogItemRow = {
   name: string;
   quantity: number | null;
   unit: string | null;
+  unit_price: number | null;
   total_amount: number | null;
+};
+
+type WorkLogCrewRow = {
+  id: string;
+  work_log_id: string;
+  crew_name: string;
+  crew_count: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  hourly_rate: number | null;
 };
 
 type ClientRow = {
@@ -102,6 +115,10 @@ function formatDate(value: string | null | undefined) {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+function formatTimeInput(value: string | null | undefined) {
+  return value ? value.slice(0, 5) : "";
 }
 
 function getLocalDateKey(date = new Date()) {
@@ -210,7 +227,7 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   const workLogsQuery = supabase
     .from("work_logs")
     .select(
-      "id, work_date, customer_name, site_address, task_summary, total_amount, labor_total, material_total, work_hours, status",
+      "id, work_date, customer_name, site_address, task_summary, notes, is_flat_rate, total_amount, labor_total, material_total, work_hours, status",
     )
     .order("work_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -224,6 +241,33 @@ export default async function OperationsPage({ searchParams }: PageProps) {
     : await withTimeout(scopedWorkLogsQuery, createQueryFallbackSuccess([]), QUERY_TIMEOUT_MS);
 
   const workLogs = (workLogsResult.data ?? []) as WorkLogRow[];
+  const workLogIds = workLogs.map((row) => row.id);
+  const [workLogItemsResult, workLogCrewResult] = workLogIds.length
+    ? await Promise.all([
+        withTimeout(
+          supabase
+            .from("work_log_items")
+            .select("id, work_log_id, name, quantity, unit, unit_price, total_amount")
+            .in("work_log_id", workLogIds)
+            .order("created_at", { ascending: true }),
+          createQueryFallbackSuccess([]),
+          QUERY_TIMEOUT_MS,
+        ),
+        withTimeout(
+          supabase
+            .from("work_log_crew_segments")
+            .select("id, work_log_id, crew_name, crew_count, started_at, finished_at, hourly_rate")
+            .in("work_log_id", workLogIds)
+            .order("created_at", { ascending: true }),
+          createQueryFallbackSuccess([]),
+          QUERY_TIMEOUT_MS,
+        ),
+      ])
+    : [createQueryFallbackSuccess([]), createQueryFallbackSuccess([])];
+  const workLogItems = (workLogItemsResult.data ?? []) as WorkLogItemRow[];
+  const workLogCrewSegments = (workLogCrewResult.data ?? []) as WorkLogCrewRow[];
+  const itemsByWorkLogId = groupByWorkLogId(workLogItems);
+  const crewByWorkLogId = groupByWorkLogId(workLogCrewSegments);
   const clients = (clientsResult.data ?? []) as ClientRow[];
   const priceItems = (priceItemsResult.data ?? []) as PriceItemRow[];
 
@@ -259,6 +303,8 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   ).length;
   const setupError =
     workLogsResult.error?.message ??
+    workLogItemsResult.error?.message ??
+    workLogCrewResult.error?.message ??
     clientsResult.error?.message ??
     priceItemsResult.error?.message ??
     "";
@@ -313,7 +359,10 @@ export default async function OperationsPage({ searchParams }: PageProps) {
           customerName: row.customer_name,
           siteAddress: row.site_address ?? "",
           taskSummary: row.task_summary,
-          totalAmount: row.total_amount ?? 0,
+          notes: row.notes ?? "",
+          isFlatRate: Boolean(row.is_flat_rate),
+          crewSegments: crewByWorkLogId.get(row.id) ?? [],
+          items: itemsByWorkLogId.get(row.id) ?? [],
           updateAction: updateWorkLog,
           deleteAction: deleteWorkLog,
         }))}
@@ -414,6 +463,16 @@ function mergeCustomerOptions(
   }
 
   return merged;
+}
+
+function groupByWorkLogId<T extends { work_log_id: string }>(rows: T[]) {
+  const grouped = new Map<string, T[]>();
+
+  for (const row of rows) {
+    grouped.set(row.work_log_id, [...(grouped.get(row.work_log_id) ?? []), row]);
+  }
+
+  return grouped;
 }
 
 function normalizeKey(value: string) {
@@ -525,7 +584,10 @@ function RecentList({
     customerName?: string;
     siteAddress?: string;
     taskSummary?: string;
-    totalAmount?: number;
+    notes?: string;
+    isFlatRate?: boolean;
+    crewSegments?: WorkLogCrewRow[];
+    items?: WorkLogItemRow[];
     updateAction?: (formData: FormData) => Promise<void>;
     deleteAction?: (formData: FormData) => Promise<void>;
   }>;
@@ -538,7 +600,54 @@ function RecentList({
       </div>
       <div className="mt-3 max-h-[460px] space-y-2 overflow-y-auto pr-1">
         {rows.length ? (
-          rows.map((row) => (
+          rows.map((row) => {
+            const crewRows = [
+              ...(row.crewSegments?.length
+                ? row.crewSegments
+                : [
+                    {
+                      id: `${row.id}-crew`,
+                      work_log_id: row.id,
+                      crew_name: "1. csapat",
+                      crew_count: 1,
+                      started_at: "",
+                      finished_at: "",
+                      hourly_rate: 8000,
+                    },
+                  ]),
+              {
+                id: `${row.id}-new-crew`,
+                work_log_id: row.id,
+                crew_name: "",
+                crew_count: null,
+                started_at: "",
+                finished_at: "",
+                hourly_rate: 8000,
+              },
+            ];
+            const itemRows = [
+              ...(row.items ?? []),
+              {
+                id: `${row.id}-new-item-1`,
+                work_log_id: row.id,
+                name: "",
+                quantity: null,
+                unit: "db",
+                unit_price: null,
+                total_amount: null,
+              },
+              {
+                id: `${row.id}-new-item-2`,
+                work_log_id: row.id,
+                name: "",
+                quantity: null,
+                unit: "db",
+                unit_price: null,
+                total_amount: null,
+              },
+            ];
+
+            return (
             <article key={row.id} className="rounded-[16px] bg-[#fff8ee] px-4 py-3">
               <div className="flex flex-wrap justify-between gap-2">
                 <p className="font-bold text-[#17130f]">{row.title}</p>
@@ -590,21 +699,106 @@ function RecentList({
                           className="mt-1 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
                         />
                       </label>
-                      <label className="text-xs font-bold text-[#493b2f]">
-                        Végösszeg
-                        <input
-                          name="totalAmount"
-                          inputMode="decimal"
-                          defaultValue={row.totalAmount}
-                          className="mt-1 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
-                        />
-                      </label>
                       <label className="text-xs font-bold text-[#493b2f] md:col-span-2">
                         Elvégzett munka
                         <textarea
                           name="taskSummary"
                           defaultValue={row.taskSummary}
                           className="mt-1 min-h-20 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
+                        />
+                      </label>
+                      <div className="space-y-2 md:col-span-2">
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#674b25]">
+                          Csapatok és idő
+                        </p>
+                        {crewRows.map((crew, index) => (
+                          <div
+                            key={crew.id}
+                            className="grid gap-2 rounded-[12px] border border-[#eadfce] bg-[#fffaf3] p-2 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.9fr]"
+                          >
+                            <input
+                              name="crewName"
+                              defaultValue={crew.crew_name}
+                              placeholder={`${index + 1}. csapat`}
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                            <input
+                              name="crewCount"
+                              inputMode="decimal"
+                              defaultValue={crew.crew_count ?? ""}
+                              placeholder="Létszám"
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                            <input
+                              name="startedAt"
+                              defaultValue={formatTimeInput(crew.started_at)}
+                              placeholder="Kezdés"
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                            <input
+                              name="finishedAt"
+                              defaultValue={formatTimeInput(crew.finished_at)}
+                              placeholder="Végzés"
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                            <input
+                              name="hourlyRate"
+                              inputMode="decimal"
+                              defaultValue={crew.hourly_rate ?? 8000}
+                              placeholder="Óradíj"
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#674b25]">
+                          Tételek
+                        </p>
+                        {itemRows.map((item, index) => (
+                          <div
+                            key={item.id}
+                            className="grid gap-2 rounded-[12px] border border-[#eadfce] bg-[#fffaf3] p-2 md:grid-cols-[1.7fr_0.8fr_0.8fr_0.9fr]"
+                          >
+                            <input
+                              name="itemName"
+                              defaultValue={item.name}
+                              placeholder={`Tétel ${index + 1}`}
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                            <input
+                              name="itemQuantity"
+                              inputMode="decimal"
+                              defaultValue={item.quantity ?? ""}
+                              placeholder="Mennyiség"
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                            <input
+                              name="itemUnit"
+                              defaultValue={item.unit ?? "db"}
+                              placeholder="Egység"
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                            <input
+                              name="itemUnitPrice"
+                              inputMode="decimal"
+                              defaultValue={item.unit_price ?? ""}
+                              placeholder="Egységár"
+                              className="rounded-[10px] border border-[#d8ccbc] bg-white px-3 py-2 text-sm font-semibold text-[#17130f]"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <label className="flex items-center gap-2 rounded-[12px] bg-[#fffaf3] px-3 py-2 text-xs font-bold text-[#493b2f] md:col-span-2">
+                        <input type="checkbox" name="isFlatRate" defaultChecked={row.isFlatRate} />
+                        Általányos ügyfélhez tartozik
+                      </label>
+                      <label className="text-xs font-bold text-[#493b2f] md:col-span-2">
+                        Megjegyzés
+                        <textarea
+                          name="notes"
+                          defaultValue={row.notes}
+                          className="mt-1 min-h-16 w-full rounded-[12px] border border-[#d8ccbc] bg-[#fffaf3] px-3 py-2 text-sm font-semibold text-[#17130f]"
                         />
                       </label>
                       <button className="w-fit rounded-full bg-[#1e5a40] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#184a34]">
@@ -626,7 +820,8 @@ function RecentList({
                 ) : null}
               </div>
             </article>
-          ))
+          );
+          })
         ) : (
           <p className="rounded-[16px] bg-[#fff8ee] px-4 py-3 text-sm font-semibold text-[#44382e]">
             {empty}

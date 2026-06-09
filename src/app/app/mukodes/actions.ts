@@ -1029,9 +1029,66 @@ export async function updateWorkLog(formData: FormData) {
   const id = getString(formData.get("id"));
   const customerName = getString(formData.get("customerName"));
   const siteAddress = getString(formData.get("siteAddress"));
-  const taskSummary = getString(formData.get("taskSummary"));
+  let taskSummary = getString(formData.get("taskSummary"));
   const workDate = getString(formData.get("workDate"));
-  const totalAmount = getNumber(formData.get("totalAmount"));
+  const crewNames = formData.getAll("crewName").map(getString);
+  const crewCounts = formData.getAll("crewCount").map(getNumber);
+  const startedAts = formData.getAll("startedAt").map(getString);
+  const finishedAts = formData.getAll("finishedAt").map(getString);
+  const hourlyRates = formData.getAll("hourlyRate").map(getNumber);
+  const itemNames = formData.getAll("itemName").map(getString);
+  const itemQuantities = formData.getAll("itemQuantity").map(getNumber);
+  const itemUnits = formData.getAll("itemUnit").map(getString);
+  const itemUnitPrices = formData.getAll("itemUnitPrice").map(getNumber);
+  const items = itemNames
+    .map((name, index) => ({
+      name,
+      quantity: itemQuantities[index] ?? 0,
+      unit: itemUnits[index] || "db",
+      unitPrice: itemUnitPrices[index] ?? 0,
+      totalAmount: (itemQuantities[index] ?? 0) * (itemUnitPrices[index] ?? 0),
+    }))
+    .filter((item) => item.name && item.quantity);
+  const crewSegments = crewNames
+    .map((name, index) => {
+      const startedAt = normalizeTime(startedAts[index] ?? "");
+      const finishedAt = normalizeTime(finishedAts[index] ?? "");
+      const workHours = getDurationHours(startedAt, finishedAt);
+      const crewCount = crewCounts[index] || 1;
+      const hourlyRate = hourlyRates[index] || 8000;
+      const crewHours = crewCount * workHours;
+
+      return {
+        name: name || `${index + 1}. csapat`,
+        crewCount,
+        startedAt,
+        finishedAt,
+        workHours,
+        crewHours,
+        hourlyRate,
+        laborTotal: crewHours * hourlyRate,
+      };
+    })
+    .filter((crew) => crew.name && crew.startedAt && crew.finishedAt && crew.workHours);
+  taskSummary =
+    taskSummary ||
+    items
+      .map((item) => item.name)
+      .filter(Boolean)
+      .slice(0, 6)
+      .join(", ");
+  const crewCount = crewSegments.reduce((sum, crew) => sum + crew.crewCount, 0) || 1;
+  const workHours = crewSegments.reduce((sum, crew) => sum + crew.crewHours, 0);
+  const hourlyRate = workHours
+    ? crewSegments.reduce((sum, crew) => sum + crew.laborTotal, 0) / workHours
+    : 8000;
+  const startedAt = crewSegments[0]?.startedAt ?? "";
+  const finishedAt = crewSegments[crewSegments.length - 1]?.finishedAt ?? "";
+  const laborTotal = crewSegments.reduce((sum, crew) => sum + crew.laborTotal, 0);
+  const materialTotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
+  const totalAmount = laborTotal + materialTotal;
+  const isFlatRate = getString(formData.get("isFlatRate")) === "on";
+  const notes = getString(formData.get("notes"));
 
   if (!isUuid(id)) {
     redirect(`/app/mukodes?error=${encodeURIComponent("Érvénytelen munkalap azonosító.")}`);
@@ -1044,6 +1101,24 @@ export async function updateWorkLog(formData: FormData) {
   }
 
   const { supabase, companyId, profileId, role } = await getCompanyContext();
+  let allowedWorkLogQuery = supabase
+    .from("work_logs")
+    .select("id")
+    .eq("id", id)
+    .eq("company_id", companyId);
+
+  if (role === "staff") {
+    allowedWorkLogQuery = allowedWorkLogQuery.eq("created_by", profileId);
+  }
+
+  const { data: allowedWorkLog, error: allowedWorkLogError } = await allowedWorkLogQuery.maybeSingle();
+
+  if (allowedWorkLogError || !allowedWorkLog) {
+    redirect(
+      `/app/mukodes?error=${encodeURIComponent("Ezt a munkalapot nem lehet módosítani ezzel a felhasználóval.")}`,
+    );
+  }
+
   let workLogUpdate = supabase
     .from("work_logs")
     .update({
@@ -1051,7 +1126,16 @@ export async function updateWorkLog(formData: FormData) {
       site_address: siteAddress || null,
       task_summary: taskSummary,
       work_date: workDate || new Date().toISOString().slice(0, 10),
+      crew_count: crewCount,
+      started_at: startedAt || null,
+      finished_at: finishedAt || null,
+      work_hours: workHours,
+      hourly_rate: hourlyRate,
+      labor_total: laborTotal,
+      material_total: materialTotal,
       total_amount: totalAmount,
+      is_flat_rate: isFlatRate,
+      notes: notes || null,
     })
     .eq("id", id)
     .eq("company_id", companyId);
@@ -1064,6 +1148,66 @@ export async function updateWorkLog(formData: FormData) {
 
   if (error) {
     redirect(`/app/mukodes?error=${encodeURIComponent(error.message)}`);
+  }
+
+  const { error: deleteItemsError } = await supabase
+    .from("work_log_items")
+    .delete()
+    .eq("work_log_id", id)
+    .eq("company_id", companyId);
+
+  if (deleteItemsError) {
+    redirect(`/app/mukodes?error=${encodeURIComponent(deleteItemsError.message)}`);
+  }
+
+  if (items.length) {
+    const { error: itemError } = await supabase.from("work_log_items").insert(
+      items.map((item) => ({
+        company_id: companyId,
+        work_log_id: id,
+        category: "elszámolás",
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        unit_price: item.unitPrice,
+        total_amount: item.totalAmount,
+      })),
+    );
+
+    if (itemError) {
+      redirect(`/app/mukodes?error=${encodeURIComponent(itemError.message)}`);
+    }
+  }
+
+  const { error: deleteCrewError } = await supabase
+    .from("work_log_crew_segments")
+    .delete()
+    .eq("work_log_id", id)
+    .eq("company_id", companyId);
+
+  if (deleteCrewError) {
+    redirect(`/app/mukodes?error=${encodeURIComponent(deleteCrewError.message)}`);
+  }
+
+  if (crewSegments.length) {
+    const { error: crewError } = await supabase.from("work_log_crew_segments").insert(
+      crewSegments.map((crew) => ({
+        company_id: companyId,
+        work_log_id: id,
+        crew_name: crew.name,
+        crew_count: crew.crewCount,
+        started_at: crew.startedAt,
+        finished_at: crew.finishedAt,
+        work_hours: crew.workHours,
+        crew_hours: crew.crewHours,
+        hourly_rate: crew.hourlyRate,
+        labor_total: crew.laborTotal,
+      })),
+    );
+
+    if (crewError) {
+      redirect(`/app/mukodes?error=${encodeURIComponent(crewError.message)}`);
+    }
   }
 
   const { error: incomeError } = await supabase
